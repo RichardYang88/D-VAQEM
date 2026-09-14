@@ -1,0 +1,32 @@
+# 数据缓存，不上传
+cache/
+
+# Python
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# 结果文件（按需保留或忽略）
+# results/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# LaTeX 编译产物
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.pdf
+paper/*.bbl
+paper/*.blg
+paper/*.synctex.gz
+
+# 大模型权重（按需，若 models/ 很大建议忽略或走 Git LFS）
+# models/

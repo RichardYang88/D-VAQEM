@@ -1,0 +1,63 @@
+[PASS] pure == pure_real  max|d|=2.22e-16
+[PASS] pure == dm(no noise)  max|d|=1.50e-15
+[PASS] probs normalised  sum=0.999999999999996
+[PASS] fold=3 noiseless invariance  max|d|=2.72e-15
+[PASS] fold=5 noiseless invariance  max|d|=6.00e-15
+[PASS] channels per qubit = 4(N-1)+9  [29 29 29 29 29 29]
+[PASS] gate_real_block == real form of gate_matrix  max|d|=0.00e+00
+[PASS] autograd gradient of pure_real  max|d|=1.06e-08
+[PASS] apply_flip == flip_kernel_full  max|d|=1.39e-17
+[PASS] A K_full == K_m A (exact sector reduction)  max|d|=1.11e-16
+[PASS] K_m column sums = 1  
+[PASS] probs_dm(readout_p) == apply_flip(probs_pure)  max|d|=1.14e-15
+[PASS] depolarizing Kraus trace preserving  max|d|=1.11e-16
+[PASS] bit_flip Kraus trace preserving  max|d|=1.11e-16
+[PASS] dephasing Kraus trace preserving  max|d|=1.11e-16
+[PASS] amplitude_damping Kraus trace preserving  max|d|=1.11e-16
+[PASS] noiseless phi_preds reproduce stored PennyLane model (mod 2pi)  max|wrapped d|=9.44e-16
+[PASS] noiseless swpe_db reproduces stored PennyLane model  median=-69.1869 dB
+[PASS] qfi_pure == stored qfi  mine=12.842339378 stored=12.842339378
+[PASS] m-sector readout is information preserving: FI(m) == FI(full)  max rel diff=2.00e-14
+        FI(m): min=1.3007 median=6.1929 max=10.0146 mean=5.7266 | QFI=12.8423 | FI(phi=0)=1.5771
+[PASS] FI(m) == FI(full) also for random circuit parameters  max rel diff=2.03e-15
+[PASS] depol p=0.0: median SWPE vs stored default.mixed  mine=-69.187 stored=-69.187 dB
+[PASS] depol p=0.0: SLD-QFI vs stored default.mixed  mine=12.84234 stored=12.84234
+        f_eq=0.000000  max|d p_m| surrogate vs exact Kraus = 7.438e-15
+[PASS] depol p=0.001: median SWPE vs stored default.mixed  mine=-25.009 stored=-25.009 dB
+[PASS] depol p=0.001: SLD-QFI vs stored default.mixed  mine=8.92842 stored=8.92842
+        f_eq=0.024084  max|d p_m| surrogate vs exact Kraus = 7.940e-03
+[PASS] depol p=0.002: median SWPE vs stored default.mixed  mine=-18.465 stored=-18.465 dB
+[PASS] depol p=0.002: SLD-QFI vs stored default.mixed  mine=6.31368 stored=6.31368
+        f_eq=0.047037  max|d p_m| surrogate vs exact Kraus = 1.188e-02
+[PASS] depol p=0.005: median SWPE vs stored default.mixed  mine=-9.294 stored=-9.294 dB
+[PASS] depol p=0.005: SLD-QFI vs stored default.mixed  mine=2.57113 stored=2.57113
+        f_eq=0.109622  max|d p_m| surrogate vs exact Kraus = 1.327e-02
+[PASS] depol p=0.01: median SWPE vs stored default.mixed  mine=-2.790 stored=-2.790 dB
+[PASS] depol p=0.01: SLD-QFI vs stored default.mixed  mine=0.93201 stored=0.93201
+        f_eq=0.195718  max|d p_m| surrogate vs exact Kraus = 8.986e-03
+[PASS] depol p=0.02: median SWPE vs stored default.mixed  mine=0.854 stored=0.854 dB
+[PASS] depol p=0.02: SLD-QFI vs stored default.mixed  mine=0.27480 stored=0.27480
+        f_eq=0.316071  max|d p_m| surrogate vs exact Kraus = 6.725e-03
+[PASS] readout q=0.0: median SWPE vs stored PennyLane kernel  mine=-69.1869 stored=-69.1869 dB
+[PASS] readout q=0.0: classical FI(phi=0) vs stored  mine=1.576908 stored=1.576908
+[PASS] readout q=0.001: median SWPE vs stored PennyLane kernel  mine=-52.2412 stored=-52.2412 dB
+[PASS] readout q=0.001: classical FI(phi=0) vs stored  mine=1.527897 stored=1.527897
+[PASS] readout q=0.002: median SWPE vs stored PennyLane kernel  mine=-46.7191 stored=-46.7191 dB
+[PASS] readout q=0.002: classical FI(phi=0) vs stored  mine=1.481170 stored=1.481170
+[PASS] readout q=0.005: median SWPE vs stored PennyLane kernel  mine=-39.0894 stored=-39.0894 dB
+[PASS] readout q=0.005: classical FI(phi=0) vs stored  mine=1.353399 stored=1.353399
+[PASS] readout q=0.01: median SWPE vs stored PennyLane kernel  mine=-33.1123 stored=-33.1123 dB
+[PASS] readout q=0.01: classical FI(phi=0) vs stored  mine=1.175373 stored=1.175373
+[PASS] readout q=0.02: median SWPE vs stored PennyLane kernel  mine=-26.7205 stored=-26.7205 dB
+[PASS] readout q=0.02: classical FI(phi=0) vs stored  mine=0.915172 stored=0.915172
+PennyLane 0.42.3 cross-check at N=4
+[PASS] PennyLane default.mixed vs Kraus DM: none p=0.0 fold=1  max|d|=2.36e-16  (0.0 s PL)
+[PASS] PennyLane default.mixed vs Kraus DM: none p=0.0 fold=5  max|d|=1.11e-15  (0.1 s PL)
+[PASS] PennyLane default.mixed vs Kraus DM: depolarizing p=0.02 fold=1  max|d|=2.72e-13  (0.0 s PL)
+[PASS] PennyLane default.mixed vs Kraus DM: depolarizing p=0.01 fold=3  max|d|=7.50e-13  (0.1 s PL)
+[PASS] PennyLane default.mixed vs Kraus DM: dephasing p=0.03 fold=1  max|d|=1.23e-13  (0.0 s PL)
+[PASS] PennyLane default.mixed vs Kraus DM: amplitude_damping p=0.02 fold=1  max|d|=4.12e-14  (0.0 s PL)
+[PASS] PennyLane default.mixed vs Kraus DM: bit_flip p=0.02 fold=3  max|d|=3.48e-13  (0.1 s PL)
+[PASS] PennyLane readout BitFlip vs probs_dm(readout_p)  max|d|=6.05e-15
+
+53 passed, 0 failed  (67.3 s)

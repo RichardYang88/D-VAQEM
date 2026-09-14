@@ -1,0 +1,38 @@
+{
+ "exp": "all",
+ "quick": false,
+ "workers": 6,
+ "N": 8,
+ "Ns": "4,6,8,10",
+ "n_cal": 21,
+ "n_tst": 21,
+ "n_trials": 41,
+ "iters": 2000,
+ "retrain_iters": 800,
+ "seed": 0,
+ "n_oracle": 361,
+ "noise": null,
+ "tag": "final",
+ "no_warm_start": false,
+ "exp_root": null,
+ "numpy": "2.2.6",
+ "autograd": "?",
+ "python": "3.10.12",
+ "fast_pauli": true,
+ "threads_env": "1",
+ "cpu_count": 24,
+ "models_available_N": [
+  4,
+  6,
+  8,
+  10
+ ],
+ "timings_s": {
+  "E1 sufficiency": 0.0,
+  "E2 sweep": 361.3,
+  "E3 shots": 305.8,
+  "E4 scaling": 2108.1,
+  "E5 calib": 213.5
+ },
+ "total_s": 2988.8
+}

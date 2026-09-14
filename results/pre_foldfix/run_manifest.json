@@ -1,0 +1,31 @@
+{
+ "exp": "sweep",
+ "quick": false,
+ "workers": 6,
+ "N": 8,
+ "n_cal": 21,
+ "n_tst": 21,
+ "n_trials": 41,
+ "iters": 2000,
+ "retrain_iters": 800,
+ "seed": 0,
+ "n_oracle": 361,
+ "noise": "[{\"label\":\"depol_0.01\",\"kind\":\"depolarizing\",\"p\":0.01,\"readout_p\":0.0},{\"label\":\"readout_0.03\",\"kind\":\"none\",\"p\":0.0,\"readout_p\":0.03},{\"label\":\"ampdamp_0.01\",\"kind\":\"amplitude_damping\",\"p\":0.01,\"readout_p\":0.0}]",
+ "tag": "e2val",
+ "numpy": "2.2.6",
+ "autograd": "?",
+ "python": "3.10.12",
+ "fast_pauli": true,
+ "threads_env": "1",
+ "cpu_count": 24,
+ "models_available_N": [
+  4,
+  6,
+  8,
+  10
+ ],
+ "timings_s": {
+  "E2 sweep": 48.6
+ },
+ "total_s": 48.6
+}

@@ -1,0 +1,29 @@
+[
+ {
+  "N": 6,
+  "variant": "random",
+  "noise": "depol_0.01",
+  "n_phi": 21,
+  "max_rel_dev": 0.012497656790949177,
+  "max_dev_norm": 0.0008883481096231353,
+  "crb_gap_db": 0.001800141213119666
+ },
+ {
+  "N": 6,
+  "variant": "random",
+  "noise": "depol_0.01",
+  "n_phi": 41,
+  "max_rel_dev": 0.01313591533007921,
+  "max_dev_norm": 0.0010161697780039839,
+  "crb_gap_db": 0.001896493461768678
+ },
+ {
+  "N": 6,
+  "variant": "random",
+  "noise": "depol_0.01",
+  "n_phi": 81,
+  "max_rel_dev": 0.013482325205646356,
+  "max_dev_norm": 0.0010677838371860248,
+  "crb_gap_db": 0.0018927900280152343
+ }
+]

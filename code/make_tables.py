@@ -1,0 +1,416 @@
+"""
+make_tables.py -- emit the LaTeX tables of the D-VAQEM manuscript straight from
+the result files, so no number is ever transcribed by hand.
+
+    python make_tables.py [--tag final] [--out ../paper]
+
+Writes ``tables.tex`` (main-text Tables I--III) and ``tables_supplement.tex``
+(Supplemental Tables S1--S7).  The manuscript inputs both files.
+"""
+import argparse
+import json
+import os
+
+import numpy as np
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+RES = os.path.abspath(os.path.join(HERE, os.pardir, "results"))
+OUT = os.path.abspath(os.path.join(HERE, os.pardir, "paper"))
+
+ORDER = ["noiseless", "none", "zne_rich", "zne_poly1", "zne_poly2",
+         "linv_known", "retrain_dec", "dvaqem_lin_l2", "dvaqem_lin_ce",
+         "dvaqem_lin_mse", "dvaqem_mlp_l2", "dvaqem_mlp_ce",
+         "dvaqem_mlp_fisher", "dvaqem_mlp_mse", "oracle_ml", "oracle_l2"]
+LABEL = {
+    "noiseless": "noiseless floor",
+    "none": "unmitigated",
+    "zne_rich": "ZNE, Richardson",
+    "zne_poly1": "ZNE, linear fit",
+    "zne_poly2": "ZNE, quadratic fit",
+    "linv_known": "exact sector inverse",
+    "retrain_dec": "decoder retraining",
+    "dvaqem_lin_l2": "D-VAQEM linear, $\\ell_2$",
+    "dvaqem_lin_ce": "D-VAQEM linear, CE",
+    "dvaqem_lin_mse": "D-VAQEM linear, shot-aware",
+    "dvaqem_mlp_l2": "D-VAQEM MLP, $\\ell_2$",
+    "dvaqem_mlp_ce": "D-VAQEM MLP, CE",
+    "dvaqem_mlp_fisher": "D-VAQEM MLP, CE+Fisher",
+    "dvaqem_mlp_mse": "D-VAQEM MLP, shot-aware",
+    "dvaqem": "D-VAQEM (selected)",
+    "oracle_ml": "oracle, known noise (ML)",
+    "oracle_l2": "oracle, known noise ($\\ell_2$)",
+}
+CHANNELS = ("depol", "deph", "ampdamp", "readout")
+CHNAME = {"depol": "depolarising", "deph": "dephasing",
+          "ampdamp": "ampl. damping", "readout": "readout"}
+
+
+def load(name, res=RES):
+    with open(os.path.join(res, name)) as fh:
+        return json.load(fh)
+
+
+def index(rows, *keys):
+    out = {}
+    for r in rows:
+        d = out
+        for k in keys[:-1]:
+            d = d.setdefault(r[k], {})
+        d.setdefault(r[keys[-1]], []).append(r)
+    return out
+
+
+def one(idx, *key):
+    v = idx
+    for k in key:
+        v = v[k]
+    assert len(v) == 1, (key, len(v))
+    return v[0]
+
+
+def settings_by_channel(settings):
+    out = {c: [] for c in CHANNELS}
+    for s in settings:
+        name, val = s.rsplit("_", 1)
+        out[name].append((float(val), s))
+    return {k: [s for _, s in sorted(v)] for k, v in out.items() if v}
+
+
+def cell(idx, m, s, key):
+    if m == "dvaqem":
+        m = one(idx, "none", s)["best_dvaqem"]
+    if m not in idx or s not in idx[m]:
+        return "--"
+    return f"{one(idx, m, s)['mse_db']:.1f}"
+
+
+def env_table(cap, lab, cols, body, star=False, font="\\scriptsize"):
+    """Wrap a ready-made tabular body in a (starred) table environment."""
+    e = "table*" if star else "table"
+    L = [f"\\begin{{{e}}}[t]", "\\centering", f"\\caption{{{cap}}}",
+         f"\\label{{{lab}}}", font]
+    L += body
+    L += ["\\end{tabular}", f"\\end{{{e}}}", ""]
+    return "\n".join(L)
+
+
+def table_protocol(man, meta0):
+    """Table I: everything needed to reproduce the headline run."""
+    d = meta0["dvaqem_lin_l2"]
+    rows = [
+        ("probe / decoder", "VQ-CNNI checkpoint, enc=dec=1, 6 circuit "
+         "parameters; decoder $(N{+}1)\\to128\\to64\\to2$ softsign MLP, "
+         "9666 parameters at $N=8$ (frozen during mitigation)"),
+        ("system sizes", f"$N={man['N']}$ (sweep, shots, calibration); "
+         f"$N\\in\\{{{man['Ns']}}}$ (sufficiency, scaling)"),
+        ("noise channels", "depolarising / dephasing / amplitude damping after "
+         "every gate; symmetric readout bit-flip"),
+        ("calibration grid", f"$n_{{\\rm cal}}={man['n_cal']}$ uniform phases in "
+         "$[-\\pi,\\pi)$; 5 held-out phases for variant selection"),
+        ("test grid", f"$n_{{\\rm tst}}={man['n_tst']}$ half-offset phases, "
+         "disjoint from the calibration grid"),
+        ("shot budgets", "$S\\in\\{256,1024,4096\\}$ (sweep) and "
+         "$S\\in\\{64,\\dots,8192\\}$ (finite-shot study); "
+         f"{man['n_trials']} Monte-Carlo trials per point"),
+        ("map fits", f"{d['iters']} Adam iterations; learning rates "
+         "$\\ell_2$: 0.05, CE: 0.1, CE+Fisher: 0.02, shot-aware: 0.02; "
+         "Fisher weight $\\lambda=1$"),
+        ("map sizes", "linear $(N{+}1)^2=81$ parameters; MLP "
+         "$(N{+}1)\\to32\\to32\\to(N{+}1)$, 1673 parameters"),
+        ("ZNE folds", "Richardson / linear: $(1,3,5)$; quadratic: "
+         "$(1,3,5,7,9)$ (odd factors only)"),
+        ("oracle grid", f"{man['n_oracle']} exact density-matrix simulations on "
+         "a uniform phase grid, parabolic refinement of the argmin"),
+        ("decoder retraining", f"{man['retrain_iters']} Adam iterations, "
+         "$\\eta=2\\times10^{-3}$, circular loss, same calibration data"),
+        ("exact simulation", "Kraus density-matrix simulator, validated against "
+         "PennyLane \\texttt{default.mixed} (Appendix~\\ref{app:validation})"),
+    ]
+    body = ["\\begin{tabular}{@{}p{0.24\\linewidth}p{0.68\\linewidth}@{}}",
+            "\\hline", "\\textbf{quantity} & \\textbf{value} \\\\", "\\hline"]
+    body += [f"{k} & {v} \\\\" for k, v in rows]
+    return env_table("Reproduction protocol of the headline run "
+                     "(tag \\texttt{final}).", "tab:protocol", None, body)
+
+
+def table_channels(rows):
+    """Table II: mean MSE (dB) per noise channel, infinite and finite shots."""
+    idx = {k: index([r for r in rows if r["shots"] == k], "method", "setting")
+           for k in ("inf", "S1024")}
+    settings = settings_by_channel(sorted({r["setting"] for r in rows}))
+    methods = ["none", "zne_rich", "zne_poly1", "zne_poly2", "linv_known",
+               "retrain_dec", "dvaqem", "oracle_ml", "noiseless"]
+    body = ["\\begin{tabular}{@{}l" + "c" * 8 + "@{}}", "\\hline",
+            "\\multirow{2}{*}{method} & \\multicolumn{8}{c}{mean MSE (dB) over "
+            "the four strengths of each channel} \\\\",
+            " & " + " & ".join(f"{CHNAME[c]} {k}" for c in CHANNELS
+                               for k in ("inf", "1024")) + " \\\\", "\\hline"]
+    for m in methods:
+        vals = []
+        for c in CHANNELS:
+            for k in ("inf", "S1024"):
+                v = [float(cell(idx[k], m, s, k)) for s in settings[c]
+                     if cell(idx[k], m, s, k) != "--"]
+                vals.append(f"{np.mean(v):.1f}" if v else "--")
+        body.append(f"{LABEL[m]} & " + " & ".join(vals) + " \\\\")
+    body.append("\\hline")
+    return env_table(
+        "Mean squared wrapped phase error in dB, averaged over the four "
+        "strengths of each noise channel at $N=8$, at infinite shots and at "
+        "$S=1024$.  ``D-VAQEM'' is the variant selected by the held-out "
+        "calibration score in each setting; ``--'' marks a baseline that does "
+        "not exist for that channel (the exact sector inverse needs a "
+        "flip-equivalent channel).  Lower is better.",
+        "tab:channels", None, body)
+
+
+def table_scaling(rows, cost):
+    """Table III: qubit-number scaling."""
+    idx = index(rows, "N", "method", "shots")
+    Ns = sorted({r["N"] for r in rows})
+    body = ["\\begin{tabular}{@{}cccccccccc@{}}", "\\hline",
+            "\\multirow{2}{*}{$N$} & \\multirow{2}{*}{sector dim} & "
+            "\\multirow{2}{*}{$4^N$} & \\multirow{2}{*}{selected} & "
+            "\\multicolumn{5}{c}{MSE (dB) at $S=1024$} & gain (dB) \\\\",
+            " & & & variant & none & ZNE & D-VAQEM & retrain & oracle & "
+            "$1024$ / $\\infty$ \\\\", "\\hline"]
+    for N in Ns:
+        best = one(idx, N, "none", "inf")["best_dvaqem"]
+        bz = min(one(idx, N, m, "S1024")["mse_db"]
+                 for m in ("zne_rich", "zne_poly1", "zne_poly2"))
+        g1 = one(idx, N, "none", "S1024")["mse_db"] - \
+            one(idx, N, best, "S1024")["mse_db"]
+        gi = one(idx, N, "none", "inf")["mse_db"] - \
+            one(idx, N, best, "inf")["mse_db"]
+        body.append(
+            f"{N} & {N+1} & {4**N:.2e} & {best.replace('dvaqem_', '')} & "
+            f"{one(idx, N, 'none', 'S1024')['mse_db']:.1f} & {bz:.1f} & "
+            f"{one(idx, N, best, 'S1024')['mse_db']:.1f} & "
+            f"{one(idx, N, 'retrain_dec', 'S1024')['mse_db']:.1f} & "
+            f"{one(idx, N, 'oracle_ml', 'S1024')['mse_db']:.1f} & "
+            f"{g1:.1f} / {gi:.1f} \\\\")
+    body.append("\\hline")
+    t = env_table(
+        "Scaling with qubit number at depolarising rate $p=0.01$.  The last "
+        "column is the MSE reduction of the selected D-VAQEM variant relative "
+        "to the unmitigated estimator at $S=1024$ and at infinite shots.  "
+        "``sector dim'' is the number of calibration numbers per phase; "
+        "$4^N$ is the dimension of a process tomography of the same probe.",
+        "tab:scaling", None, body)
+    if cost:
+        b2 = ["\\begin{tabular}{@{}ccccc@{}}", "\\hline",
+              "$N$ & $t_{\\rm sim}$ (s) & oracle grid (s) & calibration (s) & "
+              "map fit (s) \\\\", "\\hline"]
+        for r in cost:
+            fit = one(idx, r["N"], "none", "inf")["t_fit_s"]
+            b2.append(f"{r['N']} & {r['t_sim_s']:.3f} & {r['t_oracle_s']:.1f}"
+                      f" & {r['t_calib_s']:.2f} & {fit:.1f} \\\\")
+        b2.append("\\hline")
+        t += "\n" + env_table(
+            "Measured exact-simulation cost (6 worker processes, depolarising "
+            "$p=0.01$): one density-matrix evaluation $t_{\\rm sim}$, the "
+            "361-phase oracle grid, the 21-phase D-VAQEM calibration, and the "
+            "wall-clock fit of all seven D-VAQEM variants.",
+            "tab:cost", None, b2)
+    return t
+
+
+def table_sweep_supplement(rows, key, lab):
+    """Full method x setting matrix at one shot budget."""
+    idx = index([r for r in rows if r["shots"] == key], "method", "setting")
+    settings = [s for c in CHANNELS for s in
+                settings_by_channel(sorted({r["setting"] for r in rows}))[c]]
+    body = ["\\begin{tabular}{@{}l" + "c" * len(settings) + "@{}}", "\\hline",
+            "method & " + " & ".join(s.replace("_", "\\ ") for s in settings)
+            + " \\\\", "\\hline"]
+    for m in ORDER:
+        if m not in idx:
+            continue
+        body.append(f"{LABEL[m]} & " +
+                    " & ".join(cell(idx, m, s, key) for s in settings) + " \\\\")
+    best = [one(idx, "none", s)["best_dvaqem"] for s in settings]
+    body.append("D-VAQEM (selected) & " +
+                " & ".join(f"{one(idx, b, s)['mse_db']:.1f}"
+                           for b, s in zip(best, settings)) + " \\\\")
+    body.append("\\hline")
+    return env_table(
+        f"MSE (dB) of every method in all 16 noise settings at {lab}, $N=8$.  "
+        "The last row is the variant selected by the held-out calibration "
+        "score, which is the number reported in the main text.",
+        f"tab:sweep_{key}", None, body, star=True, font="\\tiny")
+
+
+def table_e1(rows):
+    body = ["\\begin{tabular}{@{}ccclrrr@{}}", "\\hline",
+            "$N$ & variant & noise & mean $F(\\mathbf{p}_{\\rm full})$ & "
+            "mean $F(\\mathbf{p}_m)$ & $\\Delta_{\\rm CRB}$ (dB) & "
+            "max rel. dev. \\\\", "\\hline"]
+    for r in rows:
+        body.append(f"{r['N']} & {r['variant']} & {r['noise']} & "
+                    f"{r['mean_FI_p_full']:.6f} & {r['mean_FI_p_m']:.6f} & "
+                    f"{r['crb_gap_db']:.2e} & {r['max_rel_dev']:.2e} \\\\")
+    body.append("\\hline")
+    return env_table(
+        "Sufficiency of the collective-imbalance reduction: classical Fisher "
+        "information of the full outcome distribution and of the sector "
+        "distribution, Cramér--Rao penalty of the reduction, and worst "
+        "pointwise relative deviation, for trained and random circuit "
+        "parameters.", "tab:e1", None, body, star=True, font="\\tiny")
+
+
+def table_e3(rows):
+    shots = sorted({r["shots"] for r in rows})
+    sets = list(dict.fromkeys(r["setting"] for r in rows))
+    meths = list(dict.fromkeys(r["method"] for r in rows))
+    body = ["\\begin{tabular}{@{}ll" + "c" * len(shots) + "@{}}", "\\hline",
+            "setting & method & " + " & ".join(f"$S{S}$" for S in shots)
+            + " \\\\", "\\hline"]
+    for s in sets:
+        for m in meths:
+            sub = {r["shots"]: r for r in rows
+                   if r["setting"] == s and r["method"] == m}
+            body.append(f"{s} & {LABEL.get(m, m)} & " +
+                        " & ".join(f"{sub[S]['mc_mse']:.2e}" if S in sub
+                                   else "--" for S in shots) + " \\\\")
+    body.append("\\hline")
+    t = env_table("Monte-Carlo mean squared phase error versus shot budget for "
+                  "the three settings of the finite-shot study (41 trials per "
+                  "point).", "tab:e3mc", None, body, star=True, font="\\tiny")
+    body = ["\\begin{tabular}{@{}ll" + "c" * len(shots) + "@{}}", "\\hline",
+            "setting & method & " + " & ".join(f"$S{S}$" for S in shots)
+            + " \\\\", "\\hline"]
+    for s in sets:
+        for m in meths:
+            sub = {r["shots"]: r for r in rows
+                   if r["setting"] == s and r["method"] == m}
+            if not any(sub.get(S, {}).get("ratio") for S in shots):
+                continue
+            body.append(f"{s} & {LABEL.get(m, m)} & " +
+                        " & ".join(f"{sub[S]['ratio']:.3f}"
+                                   if sub.get(S, {}).get("ratio") else "--"
+                                   for S in shots) + " \\\\")
+    body.append("\\hline")
+    t += "\n" + env_table(
+        "Ratio of the Monte-Carlo MSE to the analytic (delta-method) "
+        "prediction bias$^2$ + Var$_S$.  A value of 1 validates the "
+        "closed-form variance that the shot-aware objective minimises.",
+        "tab:e3ratio", None, body, star=True, font="\\tiny")
+    return t
+
+def table_e5(rows):
+    methods = ["none", "zne_rich", "dvaqem_lin_mse", "dvaqem_mlp_ce",
+               "dvaqem_mlp_mse", "retrain_dec", "oracle_ml", "noiseless"]
+    out = ""
+    for axis, xs in (("n_cal", [5, 9, 17, 25, 41]),
+                     ("cal_shots", [512, 2048, 8192, None])):
+        sub = [r for r in rows if r["axis"] == axis and r[axis] in xs]
+        ix = index(sub, axis, "method", "shots")
+        skey = sorted({r["shots"] for r in sub})[0]
+        body = ["\\begin{tabular}{@{}l" + "c" * len(xs) + "@{}}", "\\hline",
+                "method & " + " & ".join("exact" if x is None else str(x)
+                                          for x in xs) + " \\\\", "\\hline"]
+        for m in methods:
+            body.append(f"{LABEL[m]} & " + " & ".join(
+                f"{one(ix, x, m, skey)['mse_db']:.1f}"
+                if x in ix and m in ix[x] else "--" for x in xs) + " \\\\")
+        body.append("\\hline")
+        head = ("calibration phases $n_{\\rm cal}$" if axis == "n_cal"
+                else "calibration shots $S_{\\rm cal}$")
+        out += env_table(f"MSE (dB) at $S=1024$ versus {head} (depolarising "
+                         f"$p=0.01$, $N=8$).", f"tab:e5_{axis}", None,
+                         body) + "\n"
+    return out
+
+
+def table_robustness(seeds, abl, base_rows):
+    out = ""
+    if seeds:
+        body = ["\\begin{tabular}{@{}lccc@{}}", "\\hline",
+                "run & gain (dB) $\\infty$ & gain (dB) $S1024$ & selected "
+                "variants \\\\", "\\hline"]
+        for tag, rows in seeds:
+            cells, sel = [], set()
+            for key in ("inf", "S1024"):
+                ix = index([r for r in rows if r["shots"] == key], "method",
+                           "setting")
+                sts = sorted({r["setting"] for r in rows})
+                gs = [one(ix, "none", s)["mse_db"] -
+                      one(ix, one(ix, "none", s)["best_dvaqem"], s)["mse_db"]
+                      for s in sts]
+                cells.append(f"{np.mean(gs):.2f}")
+                sel |= {one(ix, "none", s)["best_dvaqem"].replace("dvaqem_", "")
+                        for s in sts}
+            body.append(f"{tag} & {cells[0]} & {cells[1]} & "
+                        f"{', '.join(sorted(sel))} \\\\")
+        body.append("\\hline")
+        out += env_table("Repeat runs of the headline sweep with independent "
+                         "random seeds: mean MSE reduction over the 16 "
+                         "settings and the set of selected variants.",
+                         "tab:seeds", None, body)
+    if abl:
+        ib = index([r for r in base_rows if r["shots"] == "inf"], "method",
+                   "setting")
+        ia = index([r for r in abl if r["shots"] == "inf"], "method", "setting")
+        body = ["\\begin{tabular}{@{}lccccc@{}}", "\\hline",
+                "setting & warm variant & cold variant & warm (dB) & cold (dB)"
+                " & cold$-$warm \\\\", "\\hline"]
+        for s in sorted({r["setting"] for r in base_rows}):
+            bw = one(ib, "none", s)["best_dvaqem"]
+            bc = one(ia, "none", s)["best_dvaqem"]
+            w = one(ib, bw, s)["mse_db"]
+            c = one(ia, bc, s)["mse_db"]
+            body.append(f"{s} & {bw.replace('dvaqem_', '')} & "
+                        f"{bc.replace('dvaqem_', '')} & {w:.1f} & {c:.1f} & "
+                        f"{c - w:+.1f} \\\\")
+        body.append("\\hline")
+        out += "\n" + env_table(
+            "Ablation of the staged warm start: the shot-aware maps are fitted "
+            "from a cold start instead of being refined from the $\\ell_2$/CE "
+            "fits, and the held-out score re-selects the variant.",
+            "tab:ablation", None, body, star=True, font="\\tiny")
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--tag", default="final")
+    ap.add_argument("--res", default=RES)
+    ap.add_argument("--out", default=OUT)
+    a = ap.parse_args()
+    res, out = os.path.abspath(a.res), os.path.abspath(a.out)
+    os.makedirs(out, exist_ok=True)
+    man = load("run_manifest.json", res)
+    rows = load(f"{a.tag}_sweep.json", res)
+    meta = load(f"{a.tag}_sweep_meta.json", res)
+    e1 = load("e1_sufficiency.json", res)
+    e3 = load("e3_shots.json", res)
+    e4 = load("e4_scaling.json", res)
+    e5 = load("e5_calib.json", res)
+    cp = os.path.join(res, "oracle_cost.json")
+    cost = load("oracle_cost.json", res) if os.path.exists(cp) else None
+    s0 = sorted(meta)[0]
+    with open(os.path.join(out, "tables.tex"), "w") as fh:
+        fh.write("% auto-generated by code/make_tables.py -- do not edit\n"
+                 + "\n\n".join([table_protocol(man, meta[s0]),
+                                table_channels(rows),
+                                table_scaling(e4, cost)]) + "\n")
+    seeds = [("seed0", rows)]
+    for t in ("seed1", "seed2"):
+        p = os.path.join(res, "seed_robustness", f"{t}_sweep.json")
+        if os.path.exists(p):
+            seeds.append((t, load(p, res)))
+    ap_ = os.path.join(res, "ablations", "coldstart_sweep.json")
+    abl = load(ap_, res) if os.path.exists(ap_) else None
+    with open(os.path.join(out, "tables_supplement.tex"), "w") as fh:
+        fh.write("% auto-generated by code/make_tables.py -- do not edit\n"
+                 + "\n\n".join([
+                     table_sweep_supplement(rows, "inf", "infinite shots"),
+                     table_sweep_supplement(rows, "S1024", "$S=1024$"),
+                     table_e1(e1), table_e3(e3), table_e5(e5),
+                     table_robustness(seeds, abl, rows)]) + "\n")
+    print(f"wrote {os.path.join(out, 'tables.tex')} and tables_supplement.tex")
+
+
+if __name__ == "__main__":
+    main()
+
