@@ -12,7 +12,8 @@
 \usepackage{algorithmicx}
 \usepackage{algpseudocode}
 \usepackage[most]{tcolorbox}
-% \graphicspath{{./figures/}}
+\graphicspath{{./}{../figures/}{figures/}}
+\usepackage{url}
 
 \newcommand{\swjtuaffil}{%
   Information Quantum Technology Laboratory, School of Information Science and Technology, \\
@@ -28,6 +29,22 @@
 \newcommand{\tvec}{\mathbf{t}}
 \newcommand{\phihat}{\hat{\phi}}
 \newcommand{\dvaqem}{D-VAQEM}
+
+% --- float placement: wide floats must not drift past the bibliography ---
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.80}
+\renewcommand{\textfraction}{0.06}
+\renewcommand{\floatpagefraction}{0.85}
+\renewcommand{\dbltopfraction}{0.92}
+\renewcommand{\dblfloatpagefraction}{0.85}
+\setcounter{topnumber}{4}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{6}
+\setcounter{dbltopnumber}{4}
+
+% --- tables: shrink a tabular only when it would overflow the text width -
+\newcommand{\fitwidth}[1]{%
+  \resizebox{\ifdim\width>\textwidth \textwidth\else\width\fi}{!}{#1}}
 
 \begin{document}
 
@@ -285,8 +302,57 @@ $1.8\times10^{-3}$--$1.9\times10^{-3}$ dB).  In metrological terms: the
 $(N+1)$-dimensional sector family \emph{is} the estimation problem, and
 everything we do next happens in that space.
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig2_sufficiency.pdf}
+\caption{\textbf{The sector reduction is (nearly) free.}
+\textbf{a}~Fisher information of the full $2^N$-outcome family versus that of
+the $(N+1)$-outcome sector family, for $N=4,6,8,10$, trained and random circuit
+parameters, and five noise conditions; the points lie on the identity line to
+machine precision for noiseless and readout noise.
+\textbf{b}~Cram\'er--Rao penalty $\Delta_{\rm CRB}$ of the reduction under
+depolarising gate noise, where sufficiency is only approximate: solid lines
+are trained circuits, dotted lines random ones; the penalty stays below
+$4.6\times10^{-3}$ dB.
+\textbf{c}~Mean Fisher information versus qubit number for three noise
+conditions; solid is the sector family, dotted the full family (the two
+coincide within the line width).}
+\label{fig:sufficiency}
+\end{figure*}
+
+
 \section{Distribution-level variational quantum error mitigation}
 \label{sec:method}
+
+\dvaqem{} inserts a parametric, phase-independent map between the noisy
+device and the frozen certified decoder: the device supplies the sector
+distribution $\yvec$, the map returns a corrected distribution
+$\tilde\pvec$, and the estimator itself is never modified
+(Figure~\ref{fig:concept}a).  Everything below happens in the
+$(N+1)$-dimensional sector space established in Sec.~\ref{sec:setup}.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig1_concept.pdf}
+\caption{\textbf{Distribution-level error mitigation.}
+\textbf{a}~Data flow.  The probe circuit imprints the unknown phase; the
+outcome statistics are aggregated onto the collective imbalance
+$m=\#0-\#1$; the noisy device deforms the sector distribution
+$\yvec=\mathcal N_\phi[\pvec_m]$; a parametric map $M_\psi$ corrects it before
+the frozen, certified decoder reads out $\phihat$.  The map is fitted once on
+calibration data---noisy distributions at known reference phases together with
+noiseless targets from a classical model of the same circuit---and never sees
+the test phases or the noise model.
+\textbf{b}~The three sector distributions at $\phi=0.6$ rad for depolarising
+$p=0.01$, $N=8$: noiseless target, noisy input, and the deployed linear
+shot-aware map output (the exact parameters stored with the results).
+\textbf{c}~Classical Fisher information of the three families over the phase
+grid; the noisy family loses up to $97\,\%$ of the clean information at this
+strength, and the mitigated family recovers part of the score structure.  The
+mitigated family is clipped, so its Fisher information is support-restricted
+and is shown as a diagnostic only.}
+\label{fig:concept}
+\end{figure*}
 
 \subsection{Map families}
 \label{subsec:maps}
@@ -420,6 +486,10 @@ per-setting tables are in the Supplement
 (Tables~\ref{tab:sweep_inf}--\ref{tab:ablation}) and in the
 machine-readable digest shipped with the code.
 
+% ======== main-text tables: declared here so that the floats can be
+% placed inside the Results section, where they are first cited ========
+\input{tables}
+
 \subsection{Headline comparison over four noise channels}
 \label{subsec:sweep}
 
@@ -433,6 +503,23 @@ largest where the noise is strongest but still information-bearing
 ($4.2$ dB), a setting in which the noisy family retains only
 $2\times10^{-4}$ of the clean Fisher information: there is almost nothing left
 to recover, and no method in our suite recovers more.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig3_sweep.pdf}
+\caption{\textbf{Headline comparison, $N=8$, infinite shots.}
+\textbf{a--d}~Mean squared wrapped phase error versus noise strength for the
+four channels; the dashed line is the noiseless decoder floor ($-65.3$ dB).
+Zero-noise extrapolation is exactly blind to readout noise (panel \textbf{d}:
+all ZNE curves coincide with the unmitigated one), while the learned map
+inverts it and reaches the floor.
+\textbf{e}~Mean over all sixteen settings versus shot budget, including the
+noiseless floor and the known-noise-model oracle.
+\textbf{f}~Per-setting MSE reduction of the holdout-selected \dvaqem{} variant
+relative to the unmitigated estimator, at infinite shots and at $S=1024$.}
+\label{fig:sweep}
+\end{figure*}
+
 
 Three comparisons isolate what the distribution-level formulation buys.
 First, \dvaqem{} beats the best of the three ZNE variants in all sixteen
@@ -498,6 +585,25 @@ staged warm starts are a robustness device rather than a necessity in this
 regime: refitting from scratch changes the deployed MSE by $-0.3$ dB on average
 (worst case $+1.4$ dB) and changes the selected variant in $1/16$ settings.
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig4_finite_shots.pdf}
+\caption{\textbf{Finite shots and the delta method.}
+\textbf{a}~Monte-Carlo mean squared error (markers, $41$ trials) and the
+analytic prediction $\mathrm{bias}^2+\mathrm{Var}_S$ (dotted) versus shot
+budget for depolarising $p=0.01$.
+\textbf{b}~Ratio of Monte-Carlo to analytic MSE for all $96$ (setting, method,
+$S$) points; the band marks $\pm10\,\%$.  The large deviations belong to ZNE at
+$S\le256$.
+\textbf{c}~Bias--variance decomposition of the shot-independent (cross-entropy)
+and shot-aware maps: the shot-aware fit removes squared bias at no variance
+cost.
+\textbf{d}~Gain of refitting the map at the operating shot count, versus the
+shot-independent map, for the three settings.}
+\label{fig:shots}
+\end{figure*}
+
+
 \subsection{Scaling to ten qubits}
 \label{subsec:scaling}
 
@@ -526,6 +632,23 @@ we attribute it to the combination of a strongly information-poor noisy family
 $11$-dimensional distribution, and regard closing it as the main quantitative
 target for hardware experiments.
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig5_scaling.pdf}
+\caption{\textbf{Scaling with qubit number} (depolarising $p=0.01$).
+\textbf{a}~MSE versus $N$ at $S=1024$ (solid) and infinite shots (dotted) for
+the method suite; each $N$ uses its own independently trained interferometer.
+\textbf{b}~Data and parameter volumes: the sector formulation needs $N+1$
+numbers per phase and $(N+1)^2$ map parameters, against $2^N$ outcomes and
+$4^N$ process-tomography coefficients.
+\textbf{c}~Measured wall-clock cost: the \dvaqem{} fit is flat in $N$
+($\approx22$ s), the calibration grows linearly in the number of exact
+simulations, and the $361$-phase known-noise-model oracle grid grows
+exponentially ($833$ s at $N=10$).}
+\label{fig:scaling}
+\end{figure*}
+
+
 \subsection{Calibration budget}
 \label{subsec:calib}
 
@@ -546,6 +669,21 @@ reduction), so the noiseless target may itself come from a modest device run
 or from a classical model with sampling error.  Both axes confirm that the
 resource consumed by \dvaqem{} is the standard VAQEM one---tens of calibrated
 phase points---and not tomography.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig6_calibration.pdf}
+\caption{\textbf{Calibration budget} (depolarising $p=0.01$, $N=8$, evaluated
+at $S=1024$).
+\textbf{a}~MSE versus the number of calibration phases: the linear shot-aware
+map needs only five phases for a $25$ dB reduction; the MLP maps need
+$\ge17$.  The point at $n_{\rm cal}=9$ is a holdout-selection failure, reported
+as the failure mode of data-driven selection at tiny budgets.
+\textbf{b}~MSE versus the number of shots used to estimate the calibration
+targets: $512$ shots per phase are as good as exact targets.}
+\label{fig:calib}
+\end{figure*}
+
 
 \subsection{Robustness: seeds, ablations and simulator validation}
 \label{subsec:robust}
@@ -644,117 +782,12 @@ Appendix~\ref{app:validation} possible.
 \textbf{Code and data availability}  All code (simulator, mitigation suite,
 experiment drivers, figure and table generators) and all result files,
 including the machine-readable digest of every number quoted here, are
-available at \texttt{new\_paper/} in the repository
-https://github.com/RichardYang88/VQ-CNNI.
-
-% ============================ main-text tables ============================
-\input{tables}
-
-% ============================ main-text figures ============================
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig1_concept.pdf}
-\caption{\textbf{Distribution-level error mitigation.}
-\textbf{a}~Data flow.  The probe circuit imprints the unknown phase; the
-outcome statistics are aggregated onto the collective imbalance
-$m=\#0-\#1$; the noisy device deforms the sector distribution
-$\yvec=\mathcal N_\phi[\pvec_m]$; a parametric map $M_\psi$ corrects it before
-the frozen, certified decoder reads out $\phihat$.  The map is fitted once on
-calibration data---noisy distributions at known reference phases together with
-noiseless targets from a classical model of the same circuit---and never sees
-the test phases or the noise model.
-\textbf{b}~The three sector distributions at $\phi=0.6$ rad for depolarising
-$p=0.01$, $N=8$: noiseless target, noisy input, and the deployed linear
-shot-aware map output (the exact parameters stored with the results).
-\textbf{c}~Classical Fisher information of the three families over the phase
-grid; the noisy family loses up to $97\,\%$ of the clean information at this
-strength, and the mitigated family recovers part of the score structure.  The
-mitigated family is clipped, so its Fisher information is support-restricted
-and is shown as a diagnostic only.}
-\label{fig:concept}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig2_sufficiency.pdf}
-\caption{\textbf{The sector reduction is (nearly) free.}
-\textbf{a}~Fisher information of the full $2^N$-outcome family versus that of
-the $(N+1)$-outcome sector family, for $N=4,6,8,10$, trained and random circuit
-parameters, and five noise conditions; the points lie on the identity line to
-machine precision for noiseless and readout noise.
-\textbf{b}~Cram\'er--Rao penalty $\Delta_{\rm CRB}$ of the reduction under
-depolarising gate noise, where sufficiency is only approximate: solid lines
-are trained circuits, dotted lines random ones; the penalty stays below
-$4.6\times10^{-3}$ dB.
-\textbf{c}~Mean Fisher information versus qubit number for three noise
-conditions; solid is the sector family, dotted the full family (the two
-coincide within the line width).}
-\label{fig:sufficiency}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig3_sweep.pdf}
-\caption{\textbf{Headline comparison, $N=8$, infinite shots.}
-\textbf{a--d}~Mean squared wrapped phase error versus noise strength for the
-four channels; the dashed line is the noiseless decoder floor ($-65.3$ dB).
-Zero-noise extrapolation is exactly blind to readout noise (panel \textbf{d}:
-all ZNE curves coincide with the unmitigated one), while the learned map
-inverts it and reaches the floor.
-\textbf{e}~Mean over all sixteen settings versus shot budget, including the
-noiseless floor and the known-noise-model oracle.
-\textbf{f}~Per-setting MSE reduction of the holdout-selected \dvaqem{} variant
-relative to the unmitigated estimator, at infinite shots and at $S=1024$.}
-\label{fig:sweep}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig4_finite_shots.pdf}
-\caption{\textbf{Finite shots and the delta method.}
-\textbf{a}~Monte-Carlo mean squared error (markers, $41$ trials) and the
-analytic prediction $\mathrm{bias}^2+\mathrm{Var}_S$ (dotted) versus shot
-budget for depolarising $p=0.01$.
-\textbf{b}~Ratio of Monte-Carlo to analytic MSE for all $96$ (setting, method,
-$S$) points; the band marks $\pm10\,\%$.  The large deviations belong to ZNE at
-$S\le256$.
-\textbf{c}~Bias--variance decomposition of the shot-independent (cross-entropy)
-and shot-aware maps: the shot-aware fit removes squared bias at no variance
-cost.
-\textbf{d}~Gain of refitting the map at the operating shot count, versus the
-shot-independent map, for the three settings.}
-\label{fig:shots}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig5_scaling.pdf}
-\caption{\textbf{Scaling with qubit number} (depolarising $p=0.01$).
-\textbf{a}~MSE versus $N$ at $S=1024$ (solid) and infinite shots (dotted) for
-the method suite; each $N$ uses its own independently trained interferometer.
-\textbf{b}~Data and parameter volumes: the sector formulation needs $N+1$
-numbers per phase and $(N+1)^2$ map parameters, against $2^N$ outcomes and
-$4^N$ process-tomography coefficients.
-\textbf{c}~Measured wall-clock cost: the \dvaqem{} fit is flat in $N$
-($\approx22$ s), the calibration grows linearly in the number of exact
-simulations, and the $361$-phase known-noise-model oracle grid grows
-exponentially ($833$ s at $N=10$).}
-\label{fig:scaling}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig6_calibration.pdf}
-\caption{\textbf{Calibration budget} (depolarising $p=0.01$, $N=8$, evaluated
-at $S=1024$).
-\textbf{a}~MSE versus the number of calibration phases: the linear shot-aware
-map needs only five phases for a $25$ dB reduction; the MLP maps need
-$\ge17$.  The point at $n_{\rm cal}=9$ is a holdout-selection failure, reported
-as the failure mode of data-driven selection at tiny budgets.
-\textbf{b}~MSE versus the number of shots used to estimate the calibration
-targets: $512$ shots per phase are as good as exact targets.}
-\label{fig:calib}
-\end{figure*}
+archived with the manuscript source in the accompanying repository
+\texttt{D-VAQEM} (\texttt{code/} for the simulator,
+mitigation suite and drivers; \texttt{results/} for every
+result file quoted here; \texttt{paper/} for the manuscript sources and the
+generated tables).  The VQ-CNNI interferometer checkpoints and the
+companion study are at \url{https://github.com/RichardYang88/VQ-CNNI}.
 
 \appendix
 \onecolumngrid
@@ -821,12 +854,13 @@ $1.3\times10^{-2}$ in $p_m$ at the strongest depolarising rate considered, and
 is never used in any reported evaluation.  The full check log ships with the
 code.
 
+\clearpage
 % ============================ bibliography ============================
-\twocolumngrid
+\bibliographystyle{apsrev4-2}
 \bibliography{references}
 
-% ============================ supplemental tables ============================
-\onecolumngrid
+\clearpage
+% ============================ supplemental tables ========================
 \setcounter{table}{0}
 \renewcommand{\thetable}{S\arabic{table}}
 \section*{Supplemental tables}

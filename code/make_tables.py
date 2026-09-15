@@ -45,6 +45,19 @@ CHNAME = {"depol": "depolarising", "deph": "dephasing",
           "ampdamp": "ampl. damping", "readout": "readout"}
 
 
+def tex(s):
+    r"""Escape a raw name read from the result files for use in a table cell.
+
+    Setting and method names carry bare underscores (``depol_0.002``,
+    ``mlp_fisher``), and an unescaped ``_`` in text mode aborts the LaTeX run
+    with "Missing $ inserted".  Every name that is printed verbatim therefore
+    goes through here.  Strings taken from ``LABEL`` are already typeset LaTeX
+    (they contain ``$\ell_2$`` and friends) and must not be passed through this
+    function.
+    """
+    return str(s).replace("_", r"\_").replace("%", r"\%").replace("#", r"\#")
+
+
 def load(name, res=RES):
     with open(os.path.join(res, name)) as fh:
         return json.load(fh)
@@ -84,13 +97,24 @@ def cell(idx, m, s, key):
     return f"{one(idx, m, s)['mse_db']:.1f}"
 
 
-def env_table(cap, lab, cols, body, star=False, font="\\scriptsize"):
-    """Wrap a ready-made tabular body in a (starred) table environment."""
+def env_table(cap, lab, cols, body, star=False, font="\\scriptsize",
+              fit=True, colsep="4pt"):
+    """Wrap a ready-made tabular body in a (starred) table environment.
+
+    ``fit=True`` puts the tabular inside ``\\fitwidth`` (defined in the
+    manuscript preamble), which scales it down to ``\\textwidth`` *only* when it
+    would otherwise overflow, so no generated table can be wider than the page.
+    ``colsep`` tightens the inter-column space, which matters for the wide
+    per-setting tables.
+    """
     e = "table*" if star else "table"
     L = [f"\\begin{{{e}}}[t]", "\\centering", f"\\caption{{{cap}}}",
-         f"\\label{{{lab}}}", font]
+         f"\\label{{{lab}}}", font, f"\\setlength{{\\tabcolsep}}{{{colsep}}}"]
+    if fit:
+        L += ["\\fitwidth{%"]
     L += body
-    L += ["\\end{tabular}", f"\\end{{{e}}}", ""]
+    L += ["\\end{tabular}%", "}"] if fit else ["\\end{tabular}"]
+    L += [f"\\end{{{e}}}", ""]
     return "\n".join(L)
 
 
@@ -140,11 +164,18 @@ def table_channels(rows):
     settings = settings_by_channel(sorted({r["setting"] for r in rows}))
     methods = ["none", "zne_rich", "zne_poly1", "zne_poly2", "linv_known",
                "retrain_dec", "dvaqem", "oracle_ml", "noiseless"]
+    # compact two-row header: each channel name spans its (inf, S=1024)
+    # pair, which is what keeps the table inside the text width
+    short = {"depol": "depol.", "deph": "deph.",
+             "ampdamp": "amp.\\ damp.", "readout": "readout"}
     body = ["\\begin{tabular}{@{}l" + "c" * 8 + "@{}}", "\\hline",
-            "\\multirow{2}{*}{method} & \\multicolumn{8}{c}{mean MSE (dB) over "
-            "the four strengths of each channel} \\\\",
-            " & " + " & ".join(f"{CHNAME[c]} {k}" for c in CHANNELS
-                               for k in ("inf", "1024")) + " \\\\", "\\hline"]
+            "\\multirow{2}{*}{method} & "
+            + " & ".join("\\multicolumn{2}{c}{"
+                         + short[c] + "}" for c in CHANNELS)
+            + " \\\\",
+            " & " + " & ".join(["$\\infty$", "$1024$"]
+                               * len(CHANNELS))
+            + " \\\\", "\\hline"]
     for m in methods:
         vals = []
         for c in CHANNELS:
@@ -183,7 +214,7 @@ def table_scaling(rows, cost):
         gi = one(idx, N, "none", "inf")["mse_db"] - \
             one(idx, N, best, "inf")["mse_db"]
         body.append(
-            f"{N} & {N+1} & {4**N:.2e} & {best.replace('dvaqem_', '')} & "
+            f"{N} & {N+1} & {4**N:.2e} & {tex(best.replace('dvaqem_', ''))} & "
             f"{one(idx, N, 'none', 'S1024')['mse_db']:.1f} & {bz:.1f} & "
             f"{one(idx, N, best, 'S1024')['mse_db']:.1f} & "
             f"{one(idx, N, 'retrain_dec', 'S1024')['mse_db']:.1f} & "
@@ -220,9 +251,14 @@ def table_sweep_supplement(rows, key, lab):
     idx = index([r for r in rows if r["shots"] == key], "method", "setting")
     settings = [s for c in CHANNELS for s in
                 settings_by_channel(sorted({r["setting"] for r in rows}))[c]]
-    body = ["\\begin{tabular}{@{}l" + "c" * len(settings) + "@{}}", "\\hline",
-            "method & " + " & ".join(s.replace("_", "\\ ") for s in settings)
-            + " \\\\", "\\hline"]
+    # the 16 setting names are rotated: upright they would make the header
+    # row twice the text width and force an illegible shrink
+    body = ["\\begin{tabular}{@{}l" + "c" * len(settings)
+            + "@{}}", "\\hline",
+            "method & " + " & ".join(
+                "\\rotatebox[origin=c]{90}{"
+                + s.replace("_", "\\ ") + "}"
+                for s in settings) + " \\\\", "\\hline"]
     for m in ORDER:
         if m not in idx:
             continue
@@ -237,7 +273,7 @@ def table_sweep_supplement(rows, key, lab):
         f"MSE (dB) of every method in all 16 noise settings at {lab}, $N=8$.  "
         "The last row is the variant selected by the held-out calibration "
         "score, which is the number reported in the main text.",
-        f"tab:sweep_{key}", None, body, star=True, font="\\tiny")
+        f"tab:sweep_{key}", None, body, star=True, font="\\scriptsize", colsep="2pt")
 
 
 def table_e1(rows):
@@ -246,7 +282,7 @@ def table_e1(rows):
             "mean $F(\\mathbf{p}_m)$ & $\\Delta_{\\rm CRB}$ (dB) & "
             "max rel. dev. \\\\", "\\hline"]
     for r in rows:
-        body.append(f"{r['N']} & {r['variant']} & {r['noise']} & "
+        body.append(f"{r['N']} & {tex(r['variant'])} & {tex(r['noise'])} & "
                     f"{r['mean_FI_p_full']:.6f} & {r['mean_FI_p_m']:.6f} & "
                     f"{r['crb_gap_db']:.2e} & {r['max_rel_dev']:.2e} \\\\")
     body.append("\\hline")
@@ -269,7 +305,7 @@ def table_e3(rows):
         for m in meths:
             sub = {r["shots"]: r for r in rows
                    if r["setting"] == s and r["method"] == m}
-            body.append(f"{s} & {LABEL.get(m, m)} & " +
+            body.append(f"{tex(s)} & {LABEL.get(m, tex(m))} & " +
                         " & ".join(f"{sub[S]['mc_mse']:.2e}" if S in sub
                                    else "--" for S in shots) + " \\\\")
     body.append("\\hline")
@@ -285,7 +321,7 @@ def table_e3(rows):
                    if r["setting"] == s and r["method"] == m}
             if not any(sub.get(S, {}).get("ratio") for S in shots):
                 continue
-            body.append(f"{s} & {LABEL.get(m, m)} & " +
+            body.append(f"{tex(s)} & {LABEL.get(m, tex(m))} & " +
                         " & ".join(f"{sub[S]['ratio']:.3f}"
                                    if sub.get(S, {}).get("ratio") else "--"
                                    for S in shots) + " \\\\")
@@ -341,7 +377,7 @@ def table_robustness(seeds, abl, base_rows):
                 sel |= {one(ix, "none", s)["best_dvaqem"].replace("dvaqem_", "")
                         for s in sts}
             body.append(f"{tag} & {cells[0]} & {cells[1]} & "
-                        f"{', '.join(sorted(sel))} \\\\")
+                        f"{tex(', '.join(sorted(sel)))} \\\\")
         body.append("\\hline")
         out += env_table("Repeat runs of the headline sweep with independent "
                          "random seeds: mean MSE reduction over the 16 "
@@ -359,8 +395,8 @@ def table_robustness(seeds, abl, base_rows):
             bc = one(ia, "none", s)["best_dvaqem"]
             w = one(ib, bw, s)["mse_db"]
             c = one(ia, bc, s)["mse_db"]
-            body.append(f"{s} & {bw.replace('dvaqem_', '')} & "
-                        f"{bc.replace('dvaqem_', '')} & {w:.1f} & {c:.1f} & "
+            body.append(f"{tex(s)} & {tex(bw.replace('dvaqem_', ''))} & "
+                        f"{tex(bc.replace('dvaqem_', ''))} & {w:.1f} & {c:.1f} & "
                         f"{c - w:+.1f} \\\\")
         body.append("\\hline")
         out += "\n" + env_table(

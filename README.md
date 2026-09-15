@@ -1,11 +1,13 @@
-# new_paper — D-VAQEM: distribution-level variational quantum error mitigation
+# D-VAQEM: distribution-level variational quantum error mitigation
 
 Everything needed to reproduce the numbers, figures and tables of the
 manuscript in `paper/`:
 
 * `code/` — simulator, mitigation suite, experiment drivers, generators
 * `models/` — VQ-CNNI checkpoints used by the scaling study (`N=10`; the
-  `N=4,6,8` checkpoints are loaded from `../../revision_experiments/results/`)
+  `N=4,6,8` checkpoints come from the companion VQ-CNNI checkout, which
+  `vaqem_lib.vqcnni_root()` locates automatically: `$VQCNNI_ROOT`, a sibling
+  `../VQ-CNNI/`, or the old `new_paper/` parent directory)
 * `results/` — every result file of the validated headline run (`tag=final`),
   the machine-readable number digest, seed-robustness and ablation runs
 * `figures/` — generated publication figures (PDF + PNG)
@@ -14,8 +16,9 @@ manuscript in `paper/`:
 
 ## Environments
 
-* main venv (`../../.venv`): `numpy`, `scipy`, `matplotlib`, `autograd` —
-  everything except the PennyLane cross-check
+* main venv (e.g. `../VQ-CNNI/.venv`, or any environment installed from
+  `requirments.txt` with `install.sh`): `numpy`, `scipy`, `matplotlib`,
+  `autograd` — everything except the PennyLane cross-check
 * `./.venv-pl`: adds `pennylane` + `pennylane-lightning` — only
   `code/validate_simulator.py` needs it
 

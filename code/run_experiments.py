@@ -42,7 +42,7 @@ sys.path.insert(0, HERE)
 import vaqem_lib as vl                                       # noqa: E402
 import vaqem_methods as vm                                   # noqa: E402
 
-REPO = os.path.abspath(os.path.join(HERE, os.pardir, os.pardir))
+REPO = vl.vqcnni_root()          # companion VQ-CNNI checkout (see vaqem_lib)
 RES = os.path.join(REPO, "revision_experiments", "results")
 MODELS = os.path.join(HERE, os.pardir, "models")
 OUT = os.path.join(HERE, os.pardir, "results")

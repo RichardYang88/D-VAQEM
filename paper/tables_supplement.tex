@@ -3,10 +3,12 @@
 \centering
 \caption{MSE (dB) of every method in all 16 noise settings at infinite shots, $N=8$.  The last row is the variant selected by the held-out calibration score, which is the number reported in the main text.}
 \label{tab:sweep_inf}
-\tiny
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\fitwidth{%
 \begin{tabular}{@{}lcccccccccccccccc@{}}
 \hline
-method & depol\ 0.002 & depol\ 0.005 & depol\ 0.01 & depol\ 0.02 & deph\ 0.005 & deph\ 0.01 & deph\ 0.02 & deph\ 0.05 & ampdamp\ 0.002 & ampdamp\ 0.005 & ampdamp\ 0.01 & ampdamp\ 0.02 & readout\ 0.01 & readout\ 0.02 & readout\ 0.03 & readout\ 0.05 \\
+method & \rotatebox[origin=c]{90}{depol\ 0.002} & \rotatebox[origin=c]{90}{depol\ 0.005} & \rotatebox[origin=c]{90}{depol\ 0.01} & \rotatebox[origin=c]{90}{depol\ 0.02} & \rotatebox[origin=c]{90}{deph\ 0.005} & \rotatebox[origin=c]{90}{deph\ 0.01} & \rotatebox[origin=c]{90}{deph\ 0.02} & \rotatebox[origin=c]{90}{deph\ 0.05} & \rotatebox[origin=c]{90}{ampdamp\ 0.002} & \rotatebox[origin=c]{90}{ampdamp\ 0.005} & \rotatebox[origin=c]{90}{ampdamp\ 0.01} & \rotatebox[origin=c]{90}{ampdamp\ 0.02} & \rotatebox[origin=c]{90}{readout\ 0.01} & \rotatebox[origin=c]{90}{readout\ 0.02} & \rotatebox[origin=c]{90}{readout\ 0.03} & \rotatebox[origin=c]{90}{readout\ 0.05} \\
 \hline
 noiseless floor & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 & -65.3 \\
 unmitigated & -16.8 & -7.1 & 1.7 & 3.7 & -4.5 & 2.3 & 3.9 & 4.8 & -25.1 & -16.6 & -9.6 & -0.2 & -31.3 & -25.0 & -21.2 & -16.3 \\
@@ -26,7 +28,8 @@ oracle, known noise (ML) & -89.6 & -93.1 & -95.5 & -92.4 & -92.8 & -91.8 & -86.1
 oracle, known noise ($\ell_2$) & -80.1 & -86.1 & -93.3 & -90.3 & -87.7 & -90.2 & -84.9 & -71.4 & -78.3 & -81.0 & -85.9 & -92.4 & -77.3 & -78.0 & -78.7 & -80.3 \\
 D-VAQEM (selected) & -53.5 & -48.1 & -40.6 & -22.8 & -38.7 & -34.4 & -31.4 & 0.7 & -52.8 & -54.4 & -51.5 & -53.2 & -52.4 & -53.5 & -54.1 & -47.2 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
 
 
@@ -34,10 +37,12 @@ D-VAQEM (selected) & -53.5 & -48.1 & -40.6 & -22.8 & -38.7 & -34.4 & -31.4 & 0.7
 \centering
 \caption{MSE (dB) of every method in all 16 noise settings at $S=1024$, $N=8$.  The last row is the variant selected by the held-out calibration score, which is the number reported in the main text.}
 \label{tab:sweep_S1024}
-\tiny
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\fitwidth{%
 \begin{tabular}{@{}lcccccccccccccccc@{}}
 \hline
-method & depol\ 0.002 & depol\ 0.005 & depol\ 0.01 & depol\ 0.02 & deph\ 0.005 & deph\ 0.01 & deph\ 0.02 & deph\ 0.05 & ampdamp\ 0.002 & ampdamp\ 0.005 & ampdamp\ 0.01 & ampdamp\ 0.02 & readout\ 0.01 & readout\ 0.02 & readout\ 0.03 & readout\ 0.05 \\
+method & \rotatebox[origin=c]{90}{depol\ 0.002} & \rotatebox[origin=c]{90}{depol\ 0.005} & \rotatebox[origin=c]{90}{depol\ 0.01} & \rotatebox[origin=c]{90}{depol\ 0.02} & \rotatebox[origin=c]{90}{deph\ 0.005} & \rotatebox[origin=c]{90}{deph\ 0.01} & \rotatebox[origin=c]{90}{deph\ 0.02} & \rotatebox[origin=c]{90}{deph\ 0.05} & \rotatebox[origin=c]{90}{ampdamp\ 0.002} & \rotatebox[origin=c]{90}{ampdamp\ 0.005} & \rotatebox[origin=c]{90}{ampdamp\ 0.01} & \rotatebox[origin=c]{90}{ampdamp\ 0.02} & \rotatebox[origin=c]{90}{readout\ 0.01} & \rotatebox[origin=c]{90}{readout\ 0.02} & \rotatebox[origin=c]{90}{readout\ 0.03} & \rotatebox[origin=c]{90}{readout\ 0.05} \\
 \hline
 noiseless floor & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 \\
 unmitigated & -16.5 & -7.0 & 1.7 & 3.7 & -4.3 & 2.4 & 3.9 & 4.8 & -23.8 & -16.4 & -9.6 & -0.2 & -27.8 & -23.7 & -20.4 & -16.1 \\
@@ -57,7 +62,8 @@ oracle, known noise (ML) & -32.0 & -28.2 & -24.8 & -18.4 & -28.1 & -23.2 & -15.5
 oracle, known noise ($\ell_2$) & -31.1 & -27.6 & -24.0 & -17.3 & -27.0 & -22.6 & -14.4 & 3.0 & -33.3 & -31.1 & -28.6 & -26.4 & -33.7 & -33.2 & -32.1 & -30.3 \\
 D-VAQEM (selected) & -30.1 & -27.3 & -24.1 & -16.0 & -26.6 & -21.6 & -15.5 & 2.0 & -30.8 & -29.9 & -28.0 & -26.0 & -31.4 & -31.2 & -30.3 & -29.1 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
 
 
@@ -66,6 +72,8 @@ D-VAQEM (selected) & -30.1 & -27.3 & -24.1 & -16.0 & -26.6 & -21.6 & -15.5 & 2.0
 \caption{Sufficiency of the collective-imbalance reduction: classical Fisher information of the full outcome distribution and of the sector distribution, Cramér--Rao penalty of the reduction, and worst pointwise relative deviation, for trained and random circuit parameters.}
 \label{tab:e1}
 \tiny
+\setlength{\tabcolsep}{4pt}
+\fitwidth{%
 \begin{tabular}{@{}ccclrrr@{}}
 \hline
 $N$ & variant & noise & mean $F(\mathbf{p}_{\rm full})$ & mean $F(\mathbf{p}_m)$ & $\Delta_{\rm CRB}$ (dB) & max rel. dev. \\
@@ -111,7 +119,8 @@ $N$ & variant & noise & mean $F(\mathbf{p}_{\rm full})$ & mean $F(\mathbf{p}_m)$
 10 & random & depol\_0.02 & 0.180223 & 0.180187 & 8.46e-04 & 4.75e-03 \\
 10 & random & readout\_0.03 & 3.989421 & 3.989421 & 1.78e-15 & 5.72e-15 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
 
 
@@ -120,6 +129,8 @@ $N$ & variant & noise & mean $F(\mathbf{p}_{\rm full})$ & mean $F(\mathbf{p}_m)$
 \caption{Monte-Carlo mean squared phase error versus shot budget for the three settings of the finite-shot study (41 trials per point).}
 \label{tab:e3mc}
 \tiny
+\setlength{\tabcolsep}{4pt}
+\fitwidth{%
 \begin{tabular}{@{}llcccccccc@{}}
 \hline
 setting & method & $S64$ & $S128$ & $S256$ & $S512$ & $S1024$ & $S2048$ & $S4096$ & $S8192$ \\
@@ -140,7 +151,8 @@ readout\_0.03 & D-VAQEM MLP, shot-aware & 1.57e-02 & 6.27e-03 & 3.43e-03 & 1.75e
 readout\_0.03 & decoder retraining & 1.78e-02 & 9.11e-03 & 4.07e-03 & 2.06e-03 & 1.21e-03 & 5.67e-04 & 2.77e-04 & 1.49e-04 \\
 readout\_0.03 & ZNE, linear fit & 2.81e-02 & 1.61e-02 & 1.10e-02 & 9.62e-03 & 8.62e-03 & 8.09e-03 & 7.74e-03 & 7.67e-03 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
 
 \begin{table*}[t]
@@ -148,6 +160,8 @@ readout\_0.03 & ZNE, linear fit & 2.81e-02 & 1.61e-02 & 1.10e-02 & 9.62e-03 & 8.
 \caption{Ratio of the Monte-Carlo MSE to the analytic (delta-method) prediction bias$^2$ + Var$_S$.  A value of 1 validates the closed-form variance that the shot-aware objective minimises.}
 \label{tab:e3ratio}
 \tiny
+\setlength{\tabcolsep}{4pt}
+\fitwidth{%
 \begin{tabular}{@{}llcccccccc@{}}
 \hline
 setting & method & $S64$ & $S128$ & $S256$ & $S512$ & $S1024$ & $S2048$ & $S4096$ & $S8192$ \\
@@ -165,7 +179,8 @@ readout\_0.03 & D-VAQEM MLP, CE & 1.015 & 0.957 & 0.947 & 0.961 & 0.992 & 1.012 
 readout\_0.03 & D-VAQEM MLP, shot-aware & 0.978 & 0.972 & 0.927 & 0.918 & 1.073 & 1.023 & 0.993 & 1.047 \\
 readout\_0.03 & ZNE, linear fit & 2.083 & 1.535 & 1.227 & 1.165 & 1.093 & 1.051 & 1.017 & 1.015 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
 
 
@@ -174,6 +189,8 @@ readout\_0.03 & ZNE, linear fit & 2.083 & 1.535 & 1.227 & 1.165 & 1.093 & 1.051 
 \caption{MSE (dB) at $S=1024$ versus calibration phases $n_{\rm cal}$ (depolarising $p=0.01$, $N=8$).}
 \label{tab:e5_n_cal}
 \scriptsize
+\setlength{\tabcolsep}{4pt}
+\fitwidth{%
 \begin{tabular}{@{}lccccc@{}}
 \hline
 method & 5 & 9 & 17 & 25 & 41 \\
@@ -187,7 +204,8 @@ decoder retraining & -13.0 & -24.2 & -24.2 & -24.2 & -24.2 \\
 oracle, known noise (ML) & -24.8 & -24.8 & -24.8 & -24.8 & -24.8 \\
 noiseless floor & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{table}[t]
@@ -195,6 +213,8 @@ noiseless floor & -31.3 & -31.3 & -31.3 & -31.3 & -31.3 \\
 \caption{MSE (dB) at $S=1024$ versus calibration shots $S_{\rm cal}$ (depolarising $p=0.01$, $N=8$).}
 \label{tab:e5_cal_shots}
 \scriptsize
+\setlength{\tabcolsep}{4pt}
+\fitwidth{%
 \begin{tabular}{@{}lcccc@{}}
 \hline
 method & 512 & 2048 & 8192 & exact \\
@@ -208,7 +228,8 @@ decoder retraining & -24.2 & -24.2 & -24.2 & -24.2 \\
 oracle, known noise (ML) & -24.8 & -24.8 & -24.8 & -24.8 \\
 noiseless floor & -31.3 & -31.3 & -31.3 & -31.3 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 
@@ -218,6 +239,8 @@ noiseless floor & -31.3 & -31.3 & -31.3 & -31.3 \\
 \caption{Repeat runs of the headline sweep with independent random seeds: mean MSE reduction over the 16 settings and the set of selected variants.}
 \label{tab:seeds}
 \scriptsize
+\setlength{\tabcolsep}{4pt}
+\fitwidth{%
 \begin{tabular}{@{}lccc@{}}
 \hline
 run & gain (dB) $\infty$ & gain (dB) $S1024$ & selected variants \\
@@ -226,7 +249,8 @@ seed0 & 33.16 & 15.42 & lin\_mse, mlp\_fisher, mlp\_mse \\
 seed1 & 33.16 & 15.38 & lin\_mse, mlp\_fisher, mlp\_mse \\
 seed2 & 33.16 & 15.42 & lin\_mse, mlp\_fisher, mlp\_mse \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{table*}[t]
@@ -234,6 +258,8 @@ seed2 & 33.16 & 15.42 & lin\_mse, mlp\_fisher, mlp\_mse \\
 \caption{Ablation of the staged warm start: the shot-aware maps are fitted from a cold start instead of being refined from the $\ell_2$/CE fits, and the held-out score re-selects the variant.}
 \label{tab:ablation}
 \tiny
+\setlength{\tabcolsep}{4pt}
+\fitwidth{%
 \begin{tabular}{@{}lccccc@{}}
 \hline
 setting & warm variant & cold variant & warm (dB) & cold (dB) & cold$-$warm \\
@@ -255,6 +281,7 @@ readout\_0.02 & lin\_mse & lin\_mse & -53.5 & -53.5 & +0.0 \\
 readout\_0.03 & lin\_mse & lin\_mse & -54.1 & -54.1 & +0.0 \\
 readout\_0.05 & mlp\_mse & mlp\_mse & -47.2 & -47.2 & +0.0 \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
 

@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import vaqem_lib as vl  # noqa: E402
 
-REPO = os.path.abspath(os.path.join(HERE, os.pardir, os.pardir))
+REPO = vl.vqcnni_root()          # companion VQ-CNNI checkout (see vaqem_lib)
 RES = os.path.join(REPO, "revision_experiments", "results")
 
 PASS, FAIL = [], []

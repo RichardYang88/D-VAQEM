@@ -41,6 +41,29 @@ import numpy as np
 import autograd.numpy as anp
 
 
+def vqcnni_root():
+    """Root of the companion VQ-CNNI checkout.
+
+    That checkout stores the PennyLane-trained ``N=4,6,8`` checkpoints under
+    ``revision_experiments/results``; this repository used to live inside it as
+    ``new_paper/``, and is now a sibling of it, so both layouts are probed.
+    ``VQCNNI_ROOT`` overrides the search.  Only needed to *re-run* experiments:
+    every number the paper quotes is stored under ``results/``.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.environ.get("VQCNNI_ROOT"),
+        os.path.join(here, os.pardir, os.pardir),             # new_paper/ layout
+        os.path.join(here, os.pardir, os.pardir, "VQ-CNNI"),  # sibling checkout
+        os.path.expanduser(os.path.join("~", "github", "VQ-CNNI")),
+    ]
+    for c in candidates:
+        if c and os.path.isdir(os.path.join(c, "revision_experiments",
+                                            "results")):
+            return os.path.abspath(c)
+    return os.path.abspath(os.path.join(here, os.pardir, os.pardir, "VQ-CNNI"))
+
+
 # ======================================================================
 # m-value structure (population imbalance m = #0 - #1)
 # ======================================================================

@@ -33,7 +33,7 @@ import vaqem_lib as vl                                       # noqa: E402
 import vaqem_methods as vm                                   # noqa: E402
 import run_experiments as rx                                 # noqa: E402
 
-REPO = os.path.abspath(os.path.join(HERE, os.pardir, os.pardir))
+REPO = vl.vqcnni_root()          # companion VQ-CNNI checkout (see vaqem_lib)
 DEC = os.path.join(REPO, "revision_experiments", "results", "vqcnni_N8_s0.npz")
 NOISELESS = {"kind": "none", "p": 0.0, "readout_p": 0.0}
 
