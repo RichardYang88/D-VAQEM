@@ -5,7 +5,10 @@ the result files, so no number is ever transcribed by hand.
     python make_tables.py [--tag final] [--out ../paper]
 
 Writes ``tables.tex`` (main-text Tables I--III) and ``tables_supplement.tex``
-(Supplemental Tables S1--S7).  The manuscript inputs both files.
+(Supplemental Tables S1--S12; the last three are the paired bootstrap confidence
+intervals and exact tests, and appear only once ``results/ci_<tag>.json`` exists,
+which ``collect_numbers.py`` or ``bootstrap_ci.py`` writes).  The manuscript
+inputs both files.
 """
 import argparse
 import json
@@ -18,7 +21,8 @@ RES = os.path.abspath(os.path.join(HERE, os.pardir, "results"))
 OUT = os.path.abspath(os.path.join(HERE, os.pardir, "paper"))
 
 ORDER = ["noiseless", "none", "zne_rich", "zne_poly1", "zne_poly2",
-         "linv_known", "retrain_dec", "dvaqem_lin_l2", "dvaqem_lin_ce",
+         "linv_known", "linv_calib", "retrain_dec", "dvaqem_lin_l2",
+         "dvaqem_lin_ce",
          "dvaqem_lin_mse", "dvaqem_mlp_l2", "dvaqem_mlp_ce",
          "dvaqem_mlp_fisher", "dvaqem_mlp_mse", "oracle_ml", "oracle_l2"]
 LABEL = {
@@ -28,6 +32,7 @@ LABEL = {
     "zne_poly1": "ZNE, linear fit",
     "zne_poly2": "ZNE, quadratic fit",
     "linv_known": "exact sector inverse",
+    "linv_calib": "calibrated sector inverse",
     "retrain_dec": "decoder retraining",
     "dvaqem_lin_l2": "D-VAQEM linear, $\\ell_2$",
     "dvaqem_lin_ce": "D-VAQEM linear, CE",
@@ -37,6 +42,7 @@ LABEL = {
     "dvaqem_mlp_fisher": "D-VAQEM MLP, CE+Fisher",
     "dvaqem_mlp_mse": "D-VAQEM MLP, shot-aware",
     "dvaqem": "D-VAQEM (selected)",
+    "best_zne": "best ZNE variant$^\\dagger$",
     "oracle_ml": "oracle, known noise (ML)",
     "oracle_l2": "oracle, known noise ($\\ell_2$)",
 }
@@ -163,6 +169,7 @@ def table_channels(rows):
            for k in ("inf", "S1024")}
     settings = settings_by_channel(sorted({r["setting"] for r in rows}))
     methods = ["none", "zne_rich", "zne_poly1", "zne_poly2", "linv_known",
+               "linv_calib",
                "retrain_dec", "dvaqem", "oracle_ml", "noiseless"]
     # compact two-row header: each channel name spans its (inf, S=1024)
     # pair, which is what keeps the table inside the text width
@@ -407,6 +414,202 @@ def table_robustness(seeds, abl, base_rows):
     return out
 
 
+CI_SHOTS = ("inf", "S256", "S1024", "S4096")
+CI_ORDER = ("none", "zne_rich", "zne_poly1", "zne_poly2", "best_zne",
+            "retrain_dec", "oracle_ml", "linv_known", "linv_calib")
+CI_SHOTLAB = {"inf": "$\\infty$", "S256": "$256$", "S1024": "$1024$",
+              "S4096": "$4096$"}
+
+
+def _setting_key(s):
+    """Channel-then-strength order, matching the rest of the paper's tables."""
+    name, val = s.rsplit("_", 1)
+    return (CHANNELS.index(name) if name in CHANNELS else 99, float(val))
+
+
+def _p(p):
+    """Format a p-value: the exact sign test bottoms out at 2^-15 = 3.1e-5."""
+    if p is None:
+        return "--"
+    return "$<\\!10^{-4}$" if p < 1e-4 else f"{p:.3g}"
+
+
+def _ci(d, pct, unit="dB"):
+    if not d:
+        return "--"
+    if unit == "%":
+        return f"$[{d['ci_lo']:.1f},\\,{d['ci_hi']:.1f}]$"
+    return f"$[{d['ci_lo']:+.2f},\\,{d['ci_hi']:+.2f}]$"
+
+
+def table_ci(ci):
+    """Supplemental tables: paired bootstrap CIs and exact tests.
+
+    Reads the output of ``bootstrap_ci.build`` (written by both
+    ``bootstrap_ci.py`` and ``collect_numbers.sec_ci``), so the intervals in the
+    paper are the same objects the manuscript text quotes.
+    """
+    pct = int(round(ci["meta"]["conf"] * 100))
+    B = ci["meta"]["n_boot"]
+    agg = ci["aggregates"]
+    body = ["\\begin{tabular}{@{}llrlcrr@{}}", "\\hline",
+            "shots & comparison & mean gain (dB) & "
+            f"{pct}\\% CI & wins & sign $p$ & Wilcoxon $p$ \\\\", "\\hline"]
+    first = True
+    for key in CI_SHOTS:
+        if key not in agg:
+            continue
+        if not first:
+            body.append("\\hline")
+        first = False
+        a = agg[key]
+        for name in CI_ORDER:
+            e = a.get(name)
+            if not e or not e.get("mean"):
+                continue
+            mu = e["mean"]
+            body.append(
+                f"{CI_SHOTLAB[key]} & {LABEL.get(name, tex(name))} & "
+                f"${mu['mean']:+.2f}$ & {_ci(mu, pct)} & "
+                f"{e['sign']['n_positive']}/{e['sign']['n']} & "
+                f"{_p(e['sign']['p_two_sided'])} & "
+                f"{_p(e['wilcoxon']['p_two_sided'])} \\\\")
+        c = a.get("closure_from_means")
+        if c:
+            body.append(f"{CI_SHOTLAB[key]} & gap to noiseless closed (\\%) & "
+                        f"${c['point']:.1f}$ & {_ci(c, pct, '%')} & -- & -- & "
+                        "-- \\\\")
+    body.append("\\hline")
+    out = env_table(
+        f"Paired percentile bootstrap (${B}$ replicates, {pct}\\% intervals) and "
+        "exact tests for the mean gain of the holdout-selected D-VAQEM variant.  "
+        "A positive gain means D-VAQEM is better, so the two genie baselines "
+        "(known-noise-model oracle, exact sector inverse) appear as negative "
+        "entries and read as the residual gap.  At a fixed shot budget every "
+        "method sees the same multinomial draws (the sampler is seeded with "
+        "$\\mathrm{seed}+S$), so the comparison is paired and the interval "
+        "resamples Monte-Carlo trials; at infinite shots it resamples the "
+        f"{ci['meta'].get('n_phase', 21)} held-out test phases instead.  The "
+        "sign and Wilcoxon $p$-values are exact over the "
+        f"{ci['meta']['n_settings']} noise settings, and ``wins'' counts the "
+        "settings in which D-VAQEM is better.  ``best ZNE "
+        "variant$^{\\dagger}$'' is chosen a "
+        "posteriori per setting and is therefore anti-conservative; the three "
+        "individual ZNE rows are the selection-free evidence.",
+        "tab:ci", None, body, star=True)
+
+    per = ci["per_setting"].get("inf", {})
+    if per:
+        body = ["\\begin{tabular}{@{}lllrrlrr@{}}", "\\hline",
+                "setting & selected & best ZNE & D-VAQEM (dB) & gain (dB) & "
+                f"{pct}\\% CI & one-sided $p$ & CI excl.\\ 0 \\\\", "\\hline"]
+        for s in sorted(per, key=_setting_key):
+            e = per[s]
+            bz = e.get("best_zne")
+            if not bz:
+                continue
+            body.append(
+                f"{tex(s)} & {tex(e['selected'].replace('dvaqem_', ''))} & "
+                f"{tex(e.get('best_zne_variant', '?').replace('zne_', ''))} & "
+                f"${e['mse_db']:.1f}$ & ${bz['point']:+.2f}$ & "
+                f"{_ci(bz, pct)} & {_p(bz['p_one_sided'])} & "
+                f"{'yes' if bz['ci_lo'] > 0 else 'no'} \\\\")
+        body.append("\\hline")
+        out += "\n\n" + env_table(
+            "Per-setting evidence for the claim that D-VAQEM beats ZNE in every "
+            "noise setting: gain over the a-posteriori best ZNE variant at "
+            "infinite shots, with the paired bootstrap interval over the "
+            "held-out test phases and its one-sided $p$-value.  The last column "
+            "is the operative one: the interval excludes zero in every setting, "
+            "so the claim does not rest on point estimates alone.",
+            "tab:ci_zne", None, body)
+    return out
+
+
+def table_ci_claims(ci):
+    """Supplemental table: each headline claim of the paper with its verdict.
+
+    The verdict is computed from the interval, not written by hand, so the table
+    cannot drift out of agreement with the data: a claim of superiority is
+    ``supported'' only when the paired interval excludes zero (or, for the
+    all-settings claims, when every setting wins and the worst one still excludes
+    zero), and a claim of parity is ``supported'' only when the exact Wilcoxon
+    test over the settings fails to reject at $\\\\alpha=0.05$.
+    """
+    pct = int(round(ci["meta"]["conf"] * 100))
+    cl, agg = ci["claims"], ci["aggregates"]
+    rows = []
+    a_inf = agg.get("inf", {})
+    mr = cl.get("mean_reduction_inf_db")
+    if mr:
+        rows.append(("mean MSE reduction at infinite shots",
+                     f"${mr['mean']:.2f}$\\,dB", _ci(mr, pct),
+                     f"sign/Wilcoxon $p$\\,=\\,"
+                     f"{_p(a_inf['none']['sign']['p_two_sided'])}"
+                     f", wins {a_inf['none']['sign']['n_positive']}/{mr['n']}",
+                     "supported" if mr["ci_lo"] > 0 else "not supported"))
+    mm, pv = cl.get("min_gain_vs_best_zne_inf"), cl.get("per_variant_inf", {})
+    if mm and pv:
+        ok = (cl.get("beats_best_zne_settings_inf") == cl.get("n_settings_inf")
+              and mm["ci_lo"] > 0)
+        rows.append(("beats ZNE in all sixteen noise settings "
+                     "(a-posteriori best variant)",
+                     f"${mm['point']:+.2f}$\\,dB worst setting", _ci(mm, pct),
+                     f"{cl['beats_best_zne_settings_inf']}/"
+                     f"{cl['n_settings_inf']} wins, CI excludes 0 in "
+                     f"{cl['beats_best_zne_ci_excludes_zero_inf']}; "
+                     f"one-sided $p$\\,=\\,{_p(mm['p_one_sided'])}",
+                     "supported" if ok else "not supported"))
+        # one row per *fixed* comparator: this is the selection-free evidence
+        for zm in ("zne_rich", "zne_poly1", "zne_poly2"):
+            v = pv.get(zm)
+            if not v:
+                continue
+            rows.append((f"\\quad vs the fixed comparator {LABEL[zm]}",
+                         f"${v['mean']:+.2f}$\\,dB mean",
+                         f"$[{v['ci_lo']:+.2f},\\,{v['ci_hi']:+.2f}]$",
+                         f"wins {v['wins']:.0f}/{v['n']:.0f}, worst setting "
+                         f"${v['min']:+.2f}$\\,dB, sign "
+                         f"$p$\\,=\\,{_p(v['p_sign'])}, Wilcoxon "
+                         f"$p$\\,=\\,{_p(v['p_wilcoxon'])}",
+                         "supported" if v["wins"] == v["n"] and v["ci_lo"] > 0
+                         else "not supported"))
+    og = a_inf.get("oracle_ml", {}).get("mean")
+    if og:
+        rows.append(("residual gap to the known-noise-model oracle",
+                     f"${og['mean']:.2f}$\\,dB", _ci(og, pct), "--", "quantified"))
+    for key in ("S256", "S1024", "S4096"):
+        r, c = cl.get(f"retrain_{key}"), cl.get(f"closure_{key}_pct")
+        if r and r["mean"]:
+            mu = r["mean"]
+            pw = r["wilcoxon"]["p_two_sided"]
+            rows.append((f"matches decoder retraining at ${key[1:]}$ shots",
+                         f"${mu['mean']:+.2f}$\\,dB", _ci(mu, pct),
+                         f"sign $p$\\,=\\,{_p(r['sign']['p_two_sided'])}, Wilcoxon "
+                         f"$p$\\,=\\,{_p(pw)}, wins {r['sign']['n_positive']}/"
+                         f"{r['sign']['n']}",
+                         "supported (parity)" if pw > 0.05 else "not supported"))
+        if c:
+            rows.append((f"fraction of the dB gap closed at ${key[1:]}$ shots",
+                         f"${c['point']:.1f}$\\,\\%", _ci(c, pct, "%"), "--",
+                         "quantified"))
+    body = ["\\begin{tabular}{@{}p{0.245\\linewidth}rp{0.125\\linewidth}"
+            "p{0.245\\linewidth}p{0.155\\linewidth}@{}}", "\\hline",
+            "\\textbf{claim} & \\textbf{value} & "
+            f"\\textbf{{{pct}\\% CI}} & \\textbf{{test}} & "
+            "\\textbf{verdict} \\\\", "\\hline"]
+    for cl_, val, ci_, tst, verdict in rows:
+        body.append(f"{cl_} & {val} & {ci_} & {tst} & {verdict} \\\\")
+    body.append("\\hline")
+    return env_table(
+        "Every quantitative claim of the manuscript that a reviewer could ask to "
+        "see tested, with its paired bootstrap interval and the exact test over "
+        "the sixteen noise settings.  Verdicts are computed from the intervals by "
+        "\\texttt{make\\_tables.py}, not entered by hand.  ``quantified'' marks an "
+        "entry that reports a magnitude rather than asserting a comparison.",
+        "tab:ci_claims", None, body, star=True, font="\\tiny")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--tag", default="final")
@@ -437,13 +640,20 @@ def main():
             seeds.append((t, load(p, res)))
     ap_ = os.path.join(res, "ablations", "coldstart_sweep.json")
     abl = load(ap_, res) if os.path.exists(ap_) else None
+    cip = os.path.join(res, f"ci_{a.tag}.json")
+    ci = load(f"ci_{a.tag}.json", res) if os.path.exists(cip) else None
+    if ci is None:
+        print(f"note: no ci_{a.tag}.json, so the confidence-interval tables are "
+              "omitted; run collect_numbers.py (or bootstrap_ci.py) first")
+    sup = [table_sweep_supplement(rows, "inf", "infinite shots"),
+           table_sweep_supplement(rows, "S1024", "$S=1024$"),
+           table_e1(e1), table_e3(e3), table_e5(e5),
+           table_robustness(seeds, abl, rows)]
+    if ci is not None:
+        sup += [table_ci(ci), table_ci_claims(ci)]
     with open(os.path.join(out, "tables_supplement.tex"), "w") as fh:
         fh.write("% auto-generated by code/make_tables.py -- do not edit\n"
-                 + "\n\n".join([
-                     table_sweep_supplement(rows, "inf", "infinite shots"),
-                     table_sweep_supplement(rows, "S1024", "$S=1024$"),
-                     table_e1(e1), table_e3(e3), table_e5(e5),
-                     table_robustness(seeds, abl, rows)]) + "\n")
+                 + "\n\n".join(sup) + "\n")
     print(f"wrote {os.path.join(out, 'tables.tex')} and tables_supplement.tex")
 
 

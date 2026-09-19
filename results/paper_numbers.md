@@ -118,7 +118,7 @@ worst CRB gap per noise setting (over N and trained/random):
 
 ## E2 -- headline sweep (final): methods x noise settings
 
-N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 992
+N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 1056
 
 ### Infinite-shot MSE (dB, lower better)
 
@@ -129,6 +129,7 @@ N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 992
 | zne_rich | -33.29 | -24.71 | -9.01 | 2.32 | -19.48 | -4.12 | 2.92 | 4.67 | -36.74 | -32.93 | -26.53 | -11.37 | -31.26 | -25.01 | -21.24 | -16.31 | -17.63 |
 | zne_poly1 | -25.37 | -10.71 | 0.92 | 3.52 | -7.62 | 1.85 | 3.77 | 4.79 | -39.96 | -23.44 | -13.01 | -2.25 | -31.26 | -25.01 | -21.24 | -16.31 | -12.58 |
 | zne_poly2 | -35.84 | -15.12 | -2.42 | 3.19 | -11.59 | 0.95 | 3.52 | 4.76 | -38.66 | -30.90 | -17.18 | -5.93 | -31.26 | -25.01 | -21.24 | -16.31 | -14.94 |
+| linv_calib | -42.82 | -38.25 | -29.27 | -26.80 | -30.47 | -24.23 | -18.12 | -13.59 | -34.17 | -26.47 | -20.54 | -14.16 | -65.29 | -65.29 | -65.29 | -65.29 | -36.25 |
 | dvaqem_lin_l2 | -50.31 | -42.59 | -27.89 | -12.57 | -40.04 | -22.64 | -13.97 | 4.25 | -62.04 | -48.31 | -41.30 | -33.48 | -65.23 | -60.89 | -56.55 | -50.05 | -38.98 |
 | dvaqem_lin_ce | -50.31 | -42.59 | -9.78 | -18.73 | -40.04 | -13.74 | -15.28 | 3.82 | -62.04 | -48.31 | -41.30 | -16.56 | -29.30 | -31.47 | -26.53 | -30.41 | -29.54 |
 | dvaqem_lin_mse | -53.53 | -41.39 | -40.56 | -22.79 | -38.70 | -34.42 | -20.02 | 1.03 | -52.84 | -54.36 | -51.53 | -42.36 | -52.36 | -53.54 | -54.14 | -53.77 | -41.58 |
@@ -150,6 +151,7 @@ N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 992
 | zne_rich | -17.83 | -16.15 | -7.46 | 2.40 | -14.34 | -3.11 | 3.01 | 4.70 | -18.04 | -17.71 | -16.99 | -9.47 | -17.05 | -15.97 | -14.82 | -12.22 | -10.69 |
 | zne_poly1 | -20.69 | -9.93 | 0.74 | 3.56 | -7.00 | 1.83 | 3.79 | 4.81 | -22.96 | -19.44 | -12.29 | -2.13 | -22.27 | -20.43 | -18.63 | -14.93 | -9.75 |
 | zne_poly2 | -21.16 | -13.44 | -1.69 | 3.19 | -10.44 | 0.88 | 3.54 | 4.76 | -21.52 | -21.07 | -15.37 | -5.07 | -20.36 | -19.17 | -17.91 | -14.43 | -10.58 |
+| linv_calib | -22.96 | -17.44 | 0.90 | 4.05 | -13.72 | 3.10 | 3.79 | 4.86 | -23.74 | -22.07 | -17.50 | -7.04 | -24.77 | -24.29 | -24.40 | -23.84 | -12.82 |
 | dvaqem_lin_l2 | -22.94 | -18.29 | -12.11 | -5.78 | -15.99 | -10.48 | -1.78 | 4.35 | -24.03 | -23.83 | -19.93 | -13.46 | -24.77 | -24.22 | -24.25 | -23.56 | -16.32 |
 | dvaqem_lin_ce | -22.94 | -18.29 | -7.55 | -8.60 | -15.99 | -10.47 | -4.61 | 4.15 | -24.03 | -23.83 | -19.93 | -13.74 | -22.32 | -22.02 | -21.62 | -20.65 | -15.78 |
 | dvaqem_lin_mse | -23.56 | -21.41 | -18.48 | -10.94 | -20.36 | -15.98 | -6.18 | 3.81 | -24.91 | -24.52 | -21.91 | -20.07 | -25.85 | -25.19 | -24.98 | -24.37 | -19.06 |
@@ -171,6 +173,7 @@ N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 992
 | zne_rich | -23.62 | -20.77 | -8.49 | 2.36 | -17.70 | -3.54 | 2.92 | 4.67 | -24.01 | -23.43 | -21.61 | -11.15 | -22.40 | -20.58 | -18.32 | -15.11 | -13.80 |
 | zne_poly1 | -23.17 | -10.56 | 0.91 | 3.52 | -7.62 | 1.83 | 3.77 | 4.80 | -29.05 | -22.34 | -12.83 | -2.08 | -26.61 | -23.29 | -20.30 | -15.95 | -11.19 |
 | zne_poly2 | -26.49 | -14.89 | -2.18 | 3.19 | -11.31 | 0.97 | 3.52 | 4.77 | -26.58 | -25.92 | -16.61 | -5.85 | -25.92 | -22.62 | -20.09 | -15.76 | -12.61 |
+| linv_calib | -29.18 | -24.20 | -3.68 | 3.53 | -21.18 | 1.62 | 3.40 | 4.84 | -28.63 | -24.73 | -19.70 | -12.18 | -30.48 | -30.27 | -29.69 | -28.95 | -16.84 |
 | dvaqem_lin_l2 | -29.15 | -25.42 | -18.78 | -10.11 | -23.47 | -16.52 | -6.01 | 4.24 | -29.92 | -29.11 | -26.41 | -20.10 | -30.47 | -30.17 | -29.53 | -28.66 | -21.85 |
 | dvaqem_lin_ce | -29.15 | -25.42 | -9.09 | -14.14 | -23.47 | -12.57 | -9.51 | 3.85 | -29.92 | -29.11 | -26.41 | -15.54 | -26.27 | -27.00 | -24.47 | -25.45 | -20.23 |
 | dvaqem_lin_mse | -30.06 | -27.02 | -24.11 | -16.04 | -26.63 | -21.60 | -12.70 | 2.86 | -30.81 | -29.86 | -27.98 | -25.72 | -31.45 | -31.23 | -30.34 | -29.23 | -24.49 |
@@ -192,6 +195,7 @@ N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 992
 | zne_rich | -28.34 | -23.46 | -8.91 | 2.31 | -18.72 | -3.88 | 2.92 | 4.69 | -29.14 | -27.80 | -24.40 | -11.20 | -26.85 | -23.49 | -20.39 | -16.09 | -15.80 |
 | zne_poly1 | -25.00 | -10.68 | 0.94 | 3.50 | -7.52 | 1.86 | 3.77 | 4.80 | -33.59 | -23.08 | -12.97 | -2.21 | -29.54 | -24.46 | -21.04 | -16.29 | -11.97 |
 | zne_poly2 | -32.00 | -15.04 | -2.22 | 3.18 | -11.54 | 0.96 | 3.54 | 4.77 | -32.48 | -29.39 | -17.21 | -5.86 | -28.96 | -24.37 | -21.00 | -16.20 | -13.99 |
+| linv_calib | -34.80 | -30.53 | -10.72 | 2.61 | -26.35 | -2.15 | 1.81 | 4.68 | -31.94 | -26.15 | -20.20 | -13.90 | -36.16 | -35.78 | -35.89 | -35.48 | -20.68 |
 | dvaqem_lin_l2 | -34.91 | -31.75 | -23.38 | -11.82 | -29.95 | -20.65 | -10.88 | 4.23 | -35.90 | -35.37 | -32.69 | -25.39 | -36.16 | -35.67 | -35.70 | -35.10 | -26.94 |
 | dvaqem_lin_ce | -34.91 | -31.75 | -9.65 | -17.24 | -29.95 | -13.62 | -13.16 | 3.81 | -35.90 | -35.37 | -32.69 | -16.31 | -28.07 | -29.43 | -25.75 | -28.44 | -23.65 |
 | dvaqem_lin_mse | -35.52 | -32.98 | -30.38 | -20.41 | -31.88 | -27.15 | -16.81 | 1.49 | -36.63 | -35.94 | -34.05 | -30.88 | -37.56 | -36.60 | -36.34 | -35.85 | -29.84 |
@@ -299,7 +303,7 @@ N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 992
 
 ### Classical cost per setting
 
-- D-VAQEM: all 7 variants fitted in 21.1--23.0 s (mean 21.9 s)
+- D-VAQEM: all 7 variants fitted in 20.9--22.5 s (mean 21.5 s)
 
 - oracle: 0--0 s (mean 0 s) of exact density-matrix simulation on 361 phases (step 0.0175 rad)
 
@@ -335,6 +339,113 @@ N = 8, n_cal = 21, n_tst = 21, MC trials = n/a, rows = 992
 - zne_poly2: folds [1, 3, 5, 7, 9], coefficients [ 1.307  0.146 -0.407 -0.354  0.307], sum_f c_f^2 = 2.115 (shot-noise amplification)
 
 - zne_rich: folds [1, 3, 5], coefficients [ 1.875 -1.25   0.375], sum_f c_f^2 = 5.219 (shot-noise amplification)
+
+## Statistical validation -- paired bootstrap CIs and exact tests (final)
+
+Paired percentile bootstrap, B = 20000, 95% intervals, seed = 0; written to `ci_final.json`.  Resampling unit: the held-out test phases at infinite shots and the Monte-Carlo trials at finite shots.  All methods share the sampler seed `seed + S` at a given shot budget, so every comparison there is *paired* and the paired bootstrap is the matching interval estimator. Aggregates over the noise settings resample the settings; the sign and Wilcoxon signed-rank tests over the settings are exact (the Wilcoxon null is enumerated by a subset-sum recursion, no normal approximation).  Self-check: 1848 array identities reproduce the stored `mse`/`mse_db` exactly (worst dB deviation 0.0e+00, worst relative deviation 6.3e-16).
+
+### Mean gain of the selected D-VAQEM variant, with 95% CIs
+
+| shots | comparison | mean gain (dB) | 95% CI | wins | sign p | Wilcoxon p |
+|---|---|---|---|---|---|---|
+| inf | unmitigated | +33.16 | [+27.82, +37.99] | 16/16 | 3.1e-05 | 3.1e-05 |
+| inf | noise-aware decoder retraining | -8.64 | [-13.82, -4.30] | 1/16 | 0.00052 | 0.00021 |
+| inf | known-noise-model oracle (ML) | -46.14 | [-52.68, -40.27] | 0/16 | 3.1e-05 | 3.1e-05 |
+| inf | exact sector inverse (genie noise model) | -4.83 | [-11.38, +2.12] | 3/8 | 0.73 | 0.2 |
+| inf | readout mitigation (calibrated assignment matrix) | +6.74 | [-1.38, +15.02] | 10/16 | 0.45 | 0.3 |
+| inf | zne_rich | +25.37 | [+21.10, +29.43] | 16/16 | 3.1e-05 | 3.1e-05 |
+| inf | zne_poly1 | +30.41 | [+25.06, +35.40] | 16/16 | 3.1e-05 | 3.1e-05 |
+| inf | zne_poly2 | +28.06 | [+23.03, +32.79] | 16/16 | 3.1e-05 | 3.1e-05 |
+| inf | best ZNE variant (a posteriori) | +25.01 | [+20.61, +29.24] | 16/16 | 3.1e-05 | 3.1e-05 |
+| inf | gap to the noiseless device closed (%) | 59.8 | [48.9, 69.2] | -- | -- | -- |
+| S256 | unmitigated | +10.69 | [+7.73, +13.66] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S256 | noise-aware decoder retraining | +0.28 | [-0.01, +0.55] | 11/16 | 0.21 | 0.1 |
+| S256 | known-noise-model oracle (ML) | -1.37 | [-1.83, -0.91] | 2/16 | 0.0042 | 0.00015 |
+| S256 | exact sector inverse (genie noise model) | +5.27 | [+1.00, +10.66] | 8/8 | 0.0078 | 0.0078 |
+| S256 | readout mitigation (calibrated assignment matrix) | +6.36 | [+3.32, +9.76] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S256 | zne_rich | +8.48 | [+6.88, +10.01] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S256 | zne_poly1 | +9.43 | [+6.69, +12.26] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S256 | zne_poly2 | +8.60 | [+6.31, +11.04] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S256 | best ZNE variant (a posteriori) | +6.75 | [+4.95, +8.68] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S256 | gap to the noiseless device closed (%) | 65.1 | [49.3, 81.0] | -- | -- | -- |
+| S1024 | unmitigated | +15.42 | [+11.77, +18.95] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S1024 | noise-aware decoder retraining | +0.25 | [-0.17, +0.62] | 10/16 | 0.45 | 0.19 |
+| S1024 | known-noise-model oracle (ML) | -1.64 | [-2.14, -1.12] | 2/16 | 0.0042 | 0.00021 |
+| S1024 | exact sector inverse (genie noise model) | +5.82 | [+0.85, +12.65] | 8/8 | 0.0078 | 0.0078 |
+| S1024 | readout mitigation (calibrated assignment matrix) | +7.91 | [+4.20, +12.01] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S1024 | zne_rich | +10.95 | [+8.62, +13.38] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S1024 | zne_poly1 | +13.56 | [+9.93, +17.22] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S1024 | zne_poly2 | +12.14 | [+8.92, +15.48] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S1024 | best ZNE variant (a posteriori) | +9.69 | [+7.01, +12.54] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S1024 | gap to the noiseless device closed (%) | 70.1 | [55.5, 83.0] | -- | -- | -- |
+| S4096 | unmitigated | +20.51 | [+16.41, +24.38] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S4096 | noise-aware decoder retraining | +0.04 | [-0.69, +0.62] | 10/16 | 0.45 | 0.38 |
+| S4096 | known-noise-model oracle (ML) | -1.90 | [-2.52, -1.28] | 1/16 | 0.00052 | 0.00021 |
+| S4096 | exact sector inverse (genie noise model) | +6.12 | [+0.78, +12.91] | 7/8 | 0.07 | 0.016 |
+| S4096 | readout mitigation (calibrated assignment matrix) | +9.51 | [+5.31, +14.01] | 15/16 | 0.00052 | 6.1e-05 |
+| S4096 | zne_rich | +14.40 | [+11.35, +17.54] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S4096 | zne_poly1 | +18.23 | [+13.92, +22.40] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S4096 | zne_poly2 | +16.21 | [+12.07, +20.30] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S4096 | best ZNE variant (a posteriori) | +13.51 | [+10.04, +17.05] | 16/16 | 3.1e-05 | 3.1e-05 |
+| S4096 | gap to the noiseless device closed (%) | 76.1 | [61.5, 88.9] | -- | -- | -- |
+
+Positive gain = D-VAQEM is better, so the two genie baselines (known-noise-model oracle, exact sector inverse) appear as negative entries and read as the residual gap.  The `exact sector inverse` row covers only the flip-equivalent channels, for which that baseline exists at all.
+
+### Per-setting gain over the best ZNE variant (infinite shots)
+
+| setting | selected | best ZNE | D-VAQEM MSE (dB) | gain (dB) | 95% CI | one-sided p | CI excludes 0 |
+|---|---|---|---|---|---|---|---|
+| depol_0.002 | lin_mse | poly2 | -53.53 | +17.69 | [+12.97, +23.85] | 5e-05 | yes |
+| depol_0.005 | mlp_mse | rich | -48.08 | +23.37 | [+19.70, +26.97] | 5e-05 | yes |
+| depol_0.01 | lin_mse | rich | -40.56 | +31.54 | [+28.94, +33.84] | 5e-05 | yes |
+| depol_0.02 | lin_mse | rich | -22.79 | +25.11 | [+21.01, +29.52] | 5e-05 | yes |
+| deph_0.005 | lin_mse | rich | -38.70 | +19.22 | [+16.05, +22.22] | 5e-05 | yes |
+| deph_0.01 | lin_mse | rich | -34.42 | +30.31 | [+27.95, +34.10] | 5e-05 | yes |
+| deph_0.02 | mlp_mse | rich | -31.38 | +34.30 | [+30.46, +38.32] | 5e-05 | yes |
+| deph_0.05 | mlp_fisher | rich | 0.65 | +4.02 | [+2.13, +8.39] | 5e-05 | yes |
+| ampdamp_0.002 | lin_mse | poly1 | -52.84 | +12.87 | [+8.08, +18.08] | 5e-05 | yes |
+| ampdamp_0.005 | lin_mse | rich | -54.36 | +21.43 | [+17.69, +25.48] | 5e-05 | yes |
+| ampdamp_0.01 | lin_mse | rich | -51.53 | +25.00 | [+20.27, +29.51] | 5e-05 | yes |
+| ampdamp_0.02 | mlp_mse | rich | -53.23 | +41.86 | [+38.44, +45.60] | 5e-05 | yes |
+| readout_0.01 | lin_mse | poly2 | -52.36 | +21.10 | [+17.39, +26.85] | 5e-05 | yes |
+| readout_0.02 | lin_mse | poly2 | -53.54 | +28.52 | [+24.91, +33.61] | 5e-05 | yes |
+| readout_0.03 | lin_mse | rich | -54.14 | +32.90 | [+29.88, +36.48] | 5e-05 | yes |
+| readout_0.05 | mlp_mse | poly1 | -47.16 | +30.85 | [+27.55, +34.36] | 5e-05 | yes |
+
+The `best ZNE` column is picked a posteriori on the same data, so its interval is anti-conservative; the per-variant rows of the previous table (`zne_rich`/`zne_poly1`/`zne_poly2`) are the selection-free evidence and they agree.
+
+### Claim-by-claim verdicts
+
+### Readout-error mitigation as a comparator
+
+Convention note: `mse_db` is the mean over Monte-Carlo trials of the per-trial dB value (`agg` averages every scalar field separately), whereas `10*log10(mse)` is the dB of the trial-averaged MSE; the two differ by a Jensen gap that is largest at the smallest shot budget (0.11 dB at S=256) and exactly zero at infinite shots.  The cell counts above use `mse_db`, the convention every other dB figure in this report uses.  One further cell (`deph_0.02` at S=256) flips sign between the two conventions, at a margin of 0.013 dB, i.e. it is a tie either way.
+
+Sampling-noise amplification: in 4/64 (setting, shot-budget) cells the calibrated inverse is *worse* than not mitigating at all (deph_0.01@S256, deph_0.05@S256, deph_0.05@S1024, depol_0.02@S256).  Every one of them is at finite shots: the inversion is exact in the infinite-shot limit and ill-conditioned in practice, which is why the comparison reverses between the first row of the table above and the rest.
+
+On 4 of the 8 settings where the analytic rate exists at all, the *calibrated* rate fits the exact channel better than the analytic flip-equivalent surrogate does (depol_0.002, depol_0.005, depol_0.01, depol_0.02), on the same objective and the same calibration phases.  The surrogate is therefore not even the best member of its own family there, and the calibrated baseline is the stronger of the two inversion baselines rather than a straw man.
+
+The genie inverse exists in only 8/16 settings (it needs an analytic flip rate, so it is undefined for dephasing and amplitude damping), whereas the calibrated one is defined in 16/16.  On the 4 pure-readout settings the calibrated rate reproduces the true one to 3.8e-12, i.e. the baseline is not handicapped by a bad estimate -- where it loses, it loses on the *model*, not on the calibration.
+
+On the 4 pure-readout settings the binomial flip family contains the exact channel, so at infinite shots the calibrated inverse reaches the noiseless floor (nan dB vs nan dB) and the $\ell_2$ map comes to within 7.11 dB of it (nan dB).  This is the one regime in which a correctly calibrated readout correction is not beatable in the infinite-shot limit, and the paper says so rather than averaging over it.
+
+| claim | value | 95% CI | test | verdict |
+|---|---|---|---|---|
+| mean MSE reduction at infinite shots | 33.16 dB | [+27.82, +37.99] | sign/Wilcoxon p = 3e-05, wins 16/16 | supported |
+| beats ZNE in all sixteen noise settings | 16/16 wins; worst setting +4.02 dB (deph_0.05) | [+2.13, +8.39] | one-sided bootstrap p = 5e-05; CI excludes 0 in 16/16 | supported |
+| ...vs the fixed comparator `zne_rich` (selection-free) | +25.37 dB mean, +4.02 dB worst setting | [+21.10, +29.43] | wins 16/16, sign p = 3e-05, Wilcoxon p = 3e-05 | supported |
+| ...vs the fixed comparator `zne_poly1` (selection-free) | +30.41 dB mean, +4.14 dB worst setting | [+25.06, +35.40] | wins 16/16, sign p = 3e-05, Wilcoxon p = 3e-05 | supported |
+| ...vs the fixed comparator `zne_poly2` (selection-free) | +28.06 dB mean, +4.11 dB worst setting | [+23.03, +32.79] | wins 16/16, sign p = 3e-05, Wilcoxon p = 3e-05 | supported |
+| residual gap to the known-noise-model oracle | -46.14 dB | [-52.68, -40.27] | -- | quantified |
+| matches decoder retraining at 256 shots | +0.28 dB | [-0.01, +0.55] | sign p = 0.21, Wilcoxon p = 0.1, wins 11/16 | supported (indistinguishable) |
+| fraction of the dB gap closed at 256 shots | 65.1 % | [49.3, 81.0] | -- | quantified |
+| matches decoder retraining at 1024 shots | +0.25 dB | [-0.17, +0.62] | sign p = 0.45, Wilcoxon p = 0.19, wins 10/16 | supported (indistinguishable) |
+| fraction of the dB gap closed at 1024 shots | 70.1 % | [55.5, 83.0] | -- | quantified |
+| matches decoder retraining at 4096 shots | +0.04 dB | [-0.69, +0.62] | sign p = 0.45, Wilcoxon p = 0.38, wins 10/16 | supported (indistinguishable) |
+| fraction of the dB gap closed at 4096 shots | 76.1 % | [61.5, 88.9] | -- | quantified |
+| beats calibrated readout mitigation at infinite shots | +6.74 dB | [-1.38, +15.02] | wins 10/16, sign p = 0.5, Wilcoxon p = 0.3 | NOT supported (CI includes 0) |
+| beats calibrated readout mitigation at 256 shots | +6.36 dB | [+3.32, +9.76] | wins 16/16, sign p = 3e-05, Wilcoxon p = 3e-05 | supported |
+| beats calibrated readout mitigation at 1024 shots | +7.91 dB | [+4.20, +12.01] | wins 16/16, sign p = 3e-05, Wilcoxon p = 3e-05 | supported |
+| beats calibrated readout mitigation at 4096 shots | +9.51 dB | [+5.31, +14.01] | wins 15/16, sign p = 0.0005, Wilcoxon p = 6e-05 | supported |
 
 ## E3 -- finite-shot scaling and validation of the delta method
 
@@ -539,7 +650,7 @@ Ns = [4, 6, 8, 10], noise = {'kind': 'depolarizing', 'p': 0.01, 'readout_p': 0.0
 
 ## E5 -- calibration budget
 
-N = 8, noise = {'kind': 'depolarizing', 'p': 0.01, 'readout_p': 0.0}, evaluation shots = ['S1024', 'inf'], MC trials = n/a, rows = 288
+N = 8, noise = {'kind': 'depolarizing', 'p': 0.01, 'readout_p': 0.0}, evaluation shots = ['S1024', 'inf'], MC trials = n/a, rows = 306
 
 ### axis n_cal (MSE dB at S1024)
 
@@ -550,6 +661,7 @@ N = 8, noise = {'kind': 'depolarizing', 'p': 0.01, 'readout_p': 0.0}, evaluation
 | zne_rich | -8.49 | -8.49 | -8.49 | -8.49 | -8.49 |
 | zne_poly1 | 0.91 | 0.91 | 0.91 | 0.91 | 0.91 |
 | zne_poly2 | -2.18 | -2.18 | -2.18 | -2.18 | -2.18 |
+| linv_calib | -3.82 | -3.84 | -3.71 | -3.68 | -3.67 |
 | dvaqem_lin_l2 | -17.31 | -18.33 | -18.91 | -19.12 | -18.82 |
 | dvaqem_lin_ce | -17.31 | -0.10 | -12.93 | -15.68 | -16.36 |
 | dvaqem_lin_mse | -23.59 | -23.16 | -24.21 | -24.22 | -24.21 |
@@ -566,7 +678,7 @@ N = 8, noise = {'kind': 'depolarizing', 'p': 0.01, 'readout_p': 0.0}, evaluation
 
 - gain vs unmitigated (dB): 5:+25.27, 9:+12.14, 17:+23.13, 25:+24.25, 41:+25.70
 
-- fit time (s): 19.1, 19.8, 20.9, 22.4, 25.5   decoder-retrain time (s): 0.4, 0.4, 0.4, 0.4, 0.4
+- fit time (s): 18.6, 19.7, 21.1, 21.5, 29.2   decoder-retrain time (s): 0.4, 0.4, 0.4, 0.4, 0.4
 
 ### axis cal_shots (MSE dB at S1024)
 
@@ -577,6 +689,7 @@ N = 8, noise = {'kind': 'depolarizing', 'p': 0.01, 'readout_p': 0.0}, evaluation
 | zne_rich | -8.49 | -8.49 | -8.49 | -8.49 |
 | zne_poly1 | 0.91 | 0.91 | 0.91 | 0.91 |
 | zne_poly2 | -2.18 | -2.18 | -2.18 | -2.18 |
+| linv_calib | -3.61 | -3.68 | -3.68 | -3.67 |
 | dvaqem_lin_l2 | -19.25 | -18.97 | -19.21 | -18.82 |
 | dvaqem_lin_ce | -18.21 | -11.85 | -14.03 | -16.36 |
 | dvaqem_lin_mse | -24.21 | -24.21 | -24.21 | -24.21 |
@@ -593,7 +706,7 @@ N = 8, noise = {'kind': 'depolarizing', 'p': 0.01, 'readout_p': 0.0}, evaluation
 
 - gain vs unmitigated (dB): 512:+24.46, 2048:+25.23, 8192:+25.13, None:+25.70
 
-- fit time (s): 25.4, 25.3, 25.3, 25.4   decoder-retrain time (s): 0.4, 0.4, 0.4, 0.4
+- fit time (s): 29.2, 29.3, 28.3, 29.2   decoder-retrain time (s): 0.4, 0.4, 0.4, 0.4
 
 ## Seed robustness of the headline sweep
 
@@ -659,7 +772,7 @@ Measured with `code/bench_oracle_cost.py` (uncached exact density-matrix simulat
 
 ## Simulator validation (validate_simulator.py)
 
-- 53 checks passed, 0 failed.  53 passed, 0 failed  (67.3 s)
+- 53 checks passed, 0 failed.  53 passed, 0 failed  (69.4 s)
 
 - largest deviation among the exact cross-checks (including PennyLane ``default.mixed`` and the stored VQ-CNNI checkpoints): 1.060e-08
 
@@ -729,6 +842,6 @@ PennyLane 0.42.3 cross-check at N=4
 [PASS] PennyLane default.mixed vs Kraus DM: bit_flip p=0.02 fold=3  max|d|=3.48e-13  (0.1 s PL)
 [PASS] PennyLane readout BitFlip vs probs_dm(readout_p)  max|d|=6.05e-15
 
-53 passed, 0 failed  (67.3 s)
+53 passed, 0 failed  (69.4 s)
 
 ```

@@ -34,5 +34,21 @@
   "E4 scaling": 2108.1,
   "E5 calib": 213.5
  },
- "total_s": 2988.8
+ "total_s": 2988.8,
+ "wp2_readout_baseline_addendum": {
+  "what": "Added the calibrated readout-error-mitigation baseline 'linv_calib' (method code in code/vaqem_methods.py: calib_train_indices, calib_pairs, flip_rate_residual, fit_flip_rate, mitigator_linv_calib; wired into run_experiments.all_methods).",
+  "why_e2_e3_e5_rerun": "all_methods() is called by exp_sweep (E2) and exp_calib (E5), so those two were regenerated; E3 was regenerated as a determinism control and came out byte-identical (exp_shots does not call all_methods and carries no linv_calib rows).",
+  "commands": [
+   "OMP_NUM_THREADS=1 python run_experiments.py sweep --workers 6 --N 8 --n-cal 21 --n-tst 21 --n-trials 41 --tag repro --exp-root <tmp>",
+   "OMP_NUM_THREADS=1 python run_experiments.py shots --workers 6 --N 8 --Ns 4,6,8,10 --n-cal 21 --n-tst 21 --n-trials 41 --exp-root <tmp>",
+   "OMP_NUM_THREADS=1 python run_experiments.py calib --workers 6 --N 8 --Ns 4,6,8,10 --n-cal 21 --n-tst 21 --n-trials 41 --exp-root <tmp>"
+  ],
+  "parameters_identical_to_original": true,
+  "acceptance_e2": "final_sweep.json 992 -> 1056 rows: 64 added, all method 'linv_calib' (16 settings x 4 shot budgets); 0 removed; 0 changed. Every pre-existing number is byte-identical to the pre-WP2 archive.",
+  "acceptance_e5": "e5_calib.json 288 -> 306 rows: 18 added, all 'linv_calib'; 0 removed; the 288 shared rows differ only in the wall-clock fields t_fit_s/t_retrain_s, no scientific field changed.",
+  "acceptance_e3": "e3_shots.json byte-identical (120 rows, 0 added/removed/changed).",
+  "why_e4_not_rerun": "e4_scaling.json carries the cold-cache wall-clock measurements t_data_s/t_oracle_s that paper/check_tex.py:check_costs audits, and that check deliberately FAILS when the scaling rows report data_from_cache. A warm-cache re-run would replace a simulation cost with a cache-lookup time, and splicing freshly timed linv_calib rows into the archived file would mix two cache provenances inside one file. E4 therefore keeps its archived contents and has no linv_calib rows; the readout baseline is compared in E2, E3 and E5, where provenance is uniform.",
+  "environment_note": "autograd must be >= 1.9: vaqem_lib.gate_real_block uses plain-numpy cos/sin so that autograd.grad can differentiate the statevector simulation, which needs ArrayBox.__array_ufunc__ (absent in 1.8.0). See requirements.txt.",
+  "stability_note": "run_experiments.py sweep was observed to die with an intermittent SIGSEGV at a varying setting when the machine was near memory exhaustion (1-3 GB free, no swap), including once at the default --workers=cpu_count-2=22. It is not reproducible at --workers 6 with the paper parameters (two full 16-setting runs completed, 361.0 s and 5.9 min). The sweep writes its JSON after every setting, so a crash loses only the in-flight setting."
+ }
 }

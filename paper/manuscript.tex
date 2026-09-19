@@ -48,8 +48,6 @@
 
 \begin{document}
 
-\preprint{APS/123-QED}
-
 \title{Distribution-level variational quantum error mitigation for learned
 quantum metrology}
 
@@ -89,11 +87,15 @@ the usual distribution-matching loss, making the mitigation map aware of the
 operating shot budget without any Monte-Carlo sampling.  On an eight-qubit
 variational interferometer subjected to depolarising, dephasing,
 amplitude-damping and readout noise at sixteen strengths, \dvaqem{} reduces the
-mean squared phase error by $33.2$ dB (infinite shots) and by $10.7$--$20.5$ dB
+mean squared phase error by $33.2$ dB (infinite shots, 95\% paired bootstrap CI
+$[27.8,38.0]$) and by $10.7$--$20.5$ dB
 at $256$--$4096$ shots, closing $65$--$76\,\%$ of the decibel gap to the
 noiseless estimator, outperforming zero-noise extrapolation in all sixteen
-settings (by $25.0$ dB on average) and matching noise-aware decoder retraining
-at finite shots with two orders of magnitude fewer trainable parameters and
+settings (by $25.0$ dB on average, with every per-setting paired interval
+excluding zero and an exact sign test giving $p=3.1\times10^{-5}$) and matching
+noise-aware decoder retraining
+at finite shots (exact Wilcoxon $p\ge0.10$) with two orders of magnitude fewer
+trainable parameters and
 without touching the certified decoder.  The mitigated estimator operates
 within $0.6$ dB of the Cram\'er--Rao bound of the noisy data, the approach
 scales to ten qubits where the calibration data are eleven numbers per phase
@@ -179,14 +181,21 @@ $8192$ shots, a scaling study to ten qubits, a calibration-budget study, and
 three-seed and cold-start robustness checks, all produced by an exact
 Kraus-operator simulator cross-validated against PennyLane
 (Appendix~\ref{app:validation}).  \dvaqem{} reduces the mean squared wrapped
-phase error by $33.2$ dB at infinite shots and closes $65$--$76\,\%$ of the
+phase error by $33.2$ dB at infinite shots (95\% paired bootstrap CI
+$[27.8,38.0]$) and closes $65$--$76\,\%$ of the
 decibel distance to the noiseless estimator at finite shots; it beats every
 ZNE variant in all sixteen settings, is exactly the remedy for readout noise
 where ZNE is provably blind, and matches noise-aware retraining of the decoder
 at finite shots while using $81$--$1673$ instead of $9666$ trainable parameters
-and leaving the certified decoder untouched.  We also quantify what is lost by
+and leaving the certified decoder untouched.  Each of these comparisons is
+reported with a paired bootstrap interval and an exact test over the sixteen
+noise settings rather than as a bare point estimate
+(Sec.~\ref{subsec:noise}, Tables~\ref{tab:ci}--\ref{tab:ci_claims}), so the
+reader can check not only the size of an effect but whether it is resolvable at
+this sample size.  We also quantify what is lost by
 not knowing the noise model: a genie estimator with the exact noise model and
-$361$ exact simulations remains $46$ dB better at infinite shots, which is the
+$361$ exact simulations remains $46$ dB better at infinite shots (CI
+$[40,53]$ dB), which is the
 price \dvaqem{} pays for being model-free.
 
 \section{Setting: learned phase estimation under noise}
@@ -247,7 +256,38 @@ $\delta^2=[\mathrm{arg}\,e^{i(\phihat-\phi)}]^2$, averaged over the test grid;
 all results are reported in decibels, $10\log_{10}\mathrm{MSE}$.  Test phases
 are half-offset from the calibration grid and lie in $[-\pi,\pi)$ so that no
 physical phase is counted twice.  Finite-shot evaluation draws $S$ samples per
-phase from the exact noisy distribution and repeats the experiment over $41$
+phase from the exact noisy distribution and repeats the whole experiment over
+$41$ independent Monte-Carlo trials.  The random seed is offset by the shot
+budget, so that at a given $S$ every method is evaluated on \emph{the same}
+multinomial draws; all method-to-method comparisons at fixed $S$ are therefore
+paired, which is what the bootstrap confidence intervals of
+Sec.~\ref{sec:results} exploit.
+
+\paragraph{Statistical protocol.}
+Uncertainty is quantified by a paired percentile bootstrap with $B=20\,000$
+replicates, and the resampling unit is matched to the way each number is
+produced.  At a finite shot budget the $41$ Monte-Carlo trials are resampled and
+the decibel average is recomputed inside every replicate, which reproduces
+exactly the $\mathrm{MSE}_{\rm dB}$ convention used throughout---the mean of
+per-trial decibels, not the decibel of the mean---so each interval is centred on
+the number we quote.  At infinite shots the evaluation is deterministic and the
+$21$ held-out test phases are resampled instead.  The pairing above is preserved
+inside every replicate, so an interval for a difference is an interval for a
+\emph{paired} difference and not for two independent means.  Aggregates over the
+sixteen noise settings resample the settings, since those rather than the test
+phases are the population such a mean generalises over.  Alongside each interval
+we report the exact sign test and the exact Wilcoxon signed-rank test over the
+sixteen settings; the Wilcoxon null distribution is enumerated by a subset-sum
+recursion over the tied ranks rather than replaced by a normal approximation.
+Before any interval is formed, a self-check verifies that every stored per-phase
+and per-trial array reproduces the published $\mathrm{MSE}$ and
+$\mathrm{MSE}_{\rm dB}$ to machine precision.  The complete tables are
+Tables~\ref{tab:ci}--\ref{tab:ci_claims}.  The implementation is
+\texttt{code/bootstrap\_ci.py}, pure NumPy; its exact tests are cross-validated
+against \texttt{scipy.stats} on tie-free data and against brute-force
+enumeration of all $2^{16}$ sign patterns on tied data
+(\texttt{code/test\_bootstrap\_ci.py}), and the interval itself is checked for
+nominal coverage on synthetic data with a known gain.
 
 \subsection{The sector statistic is exactly sufficient}
 \label{subsec:sufficiency}
@@ -463,16 +503,38 @@ We compare against (i) the \emph{unmitigated} frozen decoder; (ii) three
 distribution-level ZNE variants---Richardson and linear extrapolation on folds
 $(1,3,5)$ and an over-determined quadratic fit on $(1,3,5,7,9)$, the strongest
 extrapolation the data allow; (iii) the \emph{exact sector inverse}, the
-analytic inverse of the flip-equivalent part of the channel, available exactly
-only for readout noise and approximately for depolarising noise; (iv)
+analytic inverse of the flip-equivalent part of the channel---a \emph{genie}
+form of readout-error mitigation that is told the exact effective flip rate,
+available exactly only for readout noise, approximately for depolarising noise,
+and not at all for the two channel families that are not flip-equivalent
+($8$ of the $16$ settings); (iv) the \emph{calibrated sector inverse}, which is
+readout-error mitigation as a practitioner actually runs it: the same binomial
+assignment matrix, but with its flip rate $\hat q$ estimated from the
+calibration data alone, by fitting the exact sector kernel $K(\hat q)$ to the
+calibration pairs on the same calibration phases the variational maps are
+fitted on and with the held-out phases left unseen---so it consumes exactly the
+resource budget \dvaqem{} gets, and no noise model; (v)
 \emph{noise-aware decoder retraining}, which refits all $9666$ decoder
 parameters on the same noisy calibration data---the strongest model-free
-baseline, and the one that discards the certified decoder; and (v) two
+baseline, and the one that discards the certified decoder; and (vi) two
 \emph{oracles} that know the exact noise model and evaluate it on a
 $361$-point phase grid, reading out the phase by maximum likelihood (genie
 estimators).  The noiseless decoder evaluated on clean data provides the floor,
 and the Cram\'er--Rao bound $1/(S\,F(\yvec))$ of the \emph{noisy} family
 provides the information-theoretic reference at finite shots.
+
+Baselines (iii) and (iv) share one inversion machinery and differ only in where
+the assignment matrix comes from, which is what makes the pair informative.  The
+calibration in (iv) is not a handicap: on the four pure-readout settings
+$\hat q$ reproduces the true flip rate to $3.8\times10^{-12}$, so the binomial
+family contains the channel exactly there and the estimator recovers it.  On the
+depolarising settings the analytic rate of (iii) is only a flip-equivalent
+\emph{surrogate} for the exact Kraus channel, and the calibrated rate---scoring
+both on the same objective over the same calibration phases---fits the exact
+channel better in $4$ of the $8$ settings where the analytic
+rate exists at all.  Where (iv) loses, it therefore loses on the
+\emph{model}---the assumption that the device acts as an independent per-qubit
+bit flip---and not on the quality of its calibration.
 
 \section{Results}
 \label{sec:results}
@@ -494,10 +556,18 @@ machine-readable digest shipped with the code.
 \label{subsec:sweep}
 
 Figure~\ref{fig:sweep} and Table~\ref{tab:channels} collect the sixteen noise
-settings.  At infinite shots the unmitigated frozen decoder degrades from its
+settings; the complete method $\times$ setting matrices behind them are
+Supplemental Tables~\ref{tab:sweep_inf} (infinite shots)
+and~\ref{tab:sweep_S1024} ($S=1024$).  At infinite shots the unmitigated frozen
+decoder degrades from its
 noiseless floor of $-65.3$ dB to a mean of $-9.8$ dB; the holdout-selected
 \dvaqem{} variant restores a mean of $-43.0$ dB, a mean reduction of $33.2$ dB
-(median $34.7$ dB, range $4.2$--$53.0$ dB over settings).  The reduction is
+(95\% paired bootstrap CI $[27.8,38.0]$; median $34.7$ dB, range $4.2$--$53.0$
+dB over settings).  The reduction is significant in every setting separately,
+not merely on average: the exact sign and Wilcoxon signed-rank tests over the
+sixteen settings both return $p=3.1\times10^{-5}$, the smallest value sixteen
+paired observations can yield, and every per-setting paired interval excludes
+zero (Table~\ref{tab:ci}).  It is
 largest where the noise is strongest but still information-bearing
 ($53.0$ dB at amplitude damping $p=0.02$) and smallest at dephasing $p=0.05$
 ($4.2$ dB), a setting in which the noisy family retains only
@@ -521,14 +591,32 @@ relative to the unmitigated estimator, at infinite shots and at $S=1024$.}
 \end{figure*}
 
 
-Three comparisons isolate what the distribution-level formulation buys.
+Four comparisons isolate what the distribution-level formulation buys.  The
+fourth---against readout-error mitigation---is the most diagnostic of them,
+because that baseline is \emph{exact} in its own regime: it separates the value
+of learning the map from the data from the value of merely not assuming a
+bit-flip model.
 First, \dvaqem{} beats the best of the three ZNE variants in all sixteen
-settings, by $25.0$ dB on average (minimum $4.0$ dB).  The gap has two distinct
+settings, by $25.0$ dB on average (minimum $4.0$ dB).  The claim survives
+per-setting testing rather than resting on an average: the paired interval
+excludes zero in all sixteen cases, and the least favourable setting on its own
+(dephasing $p=0.05$) still gives $+4.0$ dB $[+2.1,+8.4]$, one-sided
+$p=5.0\times10^{-5}$ (Table~\ref{tab:ci_zne}).  It also survives discarding the
+a-posteriori choice of extrapolation variant.  Taking each ZNE variant instead
+as a \emph{fixed} comparator, chosen before the data are seen, \dvaqem{} again
+wins all sixteen settings with exact sign and Wilcoxon
+$p=3.1\times10^{-5}$---by $+25.4$ dB $[+21.1,+29.4]$ on average against
+Richardson
+extrapolation, $+30.4$ dB $[+25.1,+35.4]$ against the linear fit and $+28.1$ dB
+$[+23.0,+32.8]$ against the quadratic fit---so no post-hoc selection is doing the
+work.  The gap has two distinct
 origins.  For readout noise it is qualitative: unitary folding leaves a
 readout channel invariant, so every ZNE variant returns \emph{exactly} the
 unmitigated estimate (Table~\ref{tab:channels}, readout columns), whereas the
-learned map inverts the flip kernel and reaches the noiseless floor
-($-65.3$ dB, identical to the exact sector inverse).  For gate noise the gap is
+learned map inverts the flip kernel and approaches the noiseless floor---to
+$0.06$ dB at the weakest readout rate ($-65.2$ dB against a floor of $-65.3$ dB
+at $q=0.01$), but with a residual that grows to $15.2$ dB at $q=0.05$, where
+the calibrated inverse of baseline (iv) is exact instead.  For gate noise the gap is
 quantitative and is explained by Proposition~\ref{prop:delta}: the
 extrapolation coefficients amplify both the residual model error and, at
 finite shots, the sampling noise.  Second, against noise-aware decoder
@@ -536,12 +624,52 @@ retraining---the strongest model-free baseline---\dvaqem{} is within $\sim1$ dB
 at infinite shots (retraining wins $15/16$ settings there, as expected for a
 baseline with $6$--$120\times$ more parameters and direct access to the
 estimator objective) and is statistically indistinguishable at finite shots
-(mean $-24.8$ dB versus $-24.5$ dB at $S=1024$), while using $81$--$1673$
+(mean $-24.8$ dB versus $-24.5$ dB at $S=1024$).  That parity is a tested
+statement rather than an impression left by two similar numbers: the paired mean
+difference is $+0.28$ dB $[-0.01,+0.55]$ at $S=256$, $+0.25$ dB
+$[-0.17,+0.62]$ at $S=1024$ and $+0.04$ dB $[-0.69,+0.62]$ at $S=4096$, and the
+exact Wilcoxon test over the sixteen settings fails to reject equality at
+$\alpha=0.05$ in all three cases ($p=0.105$, $0.193$, $0.375$).  \dvaqem{} is
+nominally ahead in $10$--$11$ of the sixteen settings, but at this sample size
+the difference is not resolvable---which is exactly the claim we make, and not a
+stronger one.  It does so while using $81$--$1673$
 instead of $9666$ trainable parameters, requiring no quantum--classical
-re-optimisation loop, and leaving the certified decoder untouched.  Third, the
+re-optimisation loop, and leaving the certified decoder untouched
+(Table~\ref{tab:ci_claims}).  Third, the
 known-noise-model oracle remains far ahead (mean $-89.1$ dB at infinite shots,
-a $46.1$ dB gap to \dvaqem{}): model-free mitigation is not free, and the gap
-quantifies precisely what noise-model knowledge would buy.
+a $46.1$ dB gap to \dvaqem{}, 95\% CI $[40.3,52.7]$ dB): model-free mitigation
+is not free, and the gap quantifies precisely what noise-model knowledge would
+buy.  At finite shots the same gap collapses to $1.4$--$1.9$ dB, because there
+the sampling variance common to both estimators dominates the residual model
+error that separates them.  Knowing the noise model therefore pays off most
+where shots are cheap, which is the opposite of the regime a deployed sensor
+usually operates in.  Fourth, against readout-error mitigation the comparison
+is the sharpest illustration of what the distribution-level formulation buys,
+and it reverses between the infinite-shot limit and any realistic shot budget.
+At infinite shots a correctly calibrated assignment matrix is a formidable
+comparator and \dvaqem{} does \emph{not} beat it: the paired mean gain is
+$+6.7$ dB but the 95\% CI $[-1.4,+15.0]$ contains zero, and both exact tests
+fail to reject equality (sign $p=0.45$, Wilcoxon $p=0.30$; \dvaqem{} ahead in
+only $10$ of $16$ settings).  That is the right answer, not a weakness of the
+fit: on the four pure-readout settings the binomial family contains the channel
+exactly, the inversion reaches the noiseless floor to within $1.2\times10^{-3}$
+dB, and the $\ell_2$ map comes to $0.06$ dB of the floor at a $1\%$ flip rate
+but $15.2$ dB of it at $5\%$.  At \emph{every} finite budget the ordering
+flips, because inverting an ill-conditioned assignment matrix amplifies
+sampling noise: \dvaqem{} gains $+6.4$ dB $[+3.3,+9.8]$ at $S=256$, $+7.9$ dB
+$[+4.2,+12.0]$ at $S=1024$ and $+9.5$ dB $[+5.3,+14.0]$ at $S=4096$, winning
+$16/16$, $16/16$ and $15/16$ settings with exact sign $p\le5.2\times10^{-4}$.
+The amplification is directly visible: in $4$ of the $64$ (setting, budget)
+cells---all of them at finite shots, all of them dephasing or the strongest
+depolarising setting---the calibrated inverse leaves the estimate \emph{worse}
+than not mitigating at all.  The same reversal holds against the genie inverse
+that is told the exact flip rate, which is undefined in $8$ of the $16$
+settings: \dvaqem{} is behind there on average at infinite shots ($-4.8$ dB
+$[-11.4,+2.1]$, not significant) and ahead at every finite budget ($+5.3$ to
+$+6.1$ dB, exact Wilcoxon $p\le0.016$).  Readout-error mitigation is thus a
+special case that is exactly optimal where its model holds and unlimited shots
+are available; \dvaqem{} matches it there, and is the only one of the two that
+survives a finite data set and a channel outside the flip family.
 
 At finite shots the picture changes in \dvaqem{}'s favour relative to the
 floor: the mean gain over the unmitigated estimator is $10.7$, $15.4$ and
@@ -566,7 +694,9 @@ Figure~\ref{fig:shots} tests Proposition~\ref{prop:delta} on three
 representative settings over $S=64\dots8192$.  The analytic prediction
 $\mathrm{bias}^2+\mathrm{Var}_S$ tracks the Monte-Carlo mean squared error over
 $96$ (setting, method, $S$) points with a ratio in $[0.90,2.08]$, mean $1.03$,
-median $1.00$; for the map-based estimators the ratio stays in
+median $1.00$ (Supplemental Tables~\ref{tab:e3mc} for the Monte-Carlo values
+and~\ref{tab:e3ratio} for every ratio); for the map-based estimators the ratio
+stays in
 $[0.90,1.18]$, and the only deviations beyond $1.2$ are ZNE at $S\le256$,
 where the extrapolated observable is far from Gaussian.  The closed-form
 variance is therefore trustworthy both as an error bar and as a training
@@ -624,7 +754,7 @@ the same point dynamically (Table~\ref{tab:cost}): fitting all seven
 \dvaqem{} variants takes $21.6$--$22.8$ s at every $N$, the $21$-phase
 calibration costs $0.01$--$48.5$ s of exact simulation, while the $361$-phase
 oracle grid costs $0.1$ s at $N=4$ but $833$ s at $N=10$---and the underlying
-exact dataset for the scaling study itself took $1981$ s at $N=10$.  At
+exact dataset for the scaling study itself took $1982$ s at $N=10$.  At
 $N=10$ the mitigated estimator ($-16.3$ dB at $S=1024$) still trails the
 noiseless floor ($-25.9$ dB) by $\sim10$ dB, the largest residual in the study;
 we attribute it to the combination of a strongly information-poor noisy family
@@ -658,14 +788,16 @@ map already delivers $-23.6$ dB (a $25.3$ dB reduction) from $n_{\rm cal}=5$
 phases and saturates at $-24.2$ dB by $n_{\rm cal}=17$; the MLP maps need
 $n_{\rm cal}\ge17$ to reach the same level, which is exactly the
 sample-complexity price of their extra flexibility, and the holdout selection
-correctly prefers the linear map when phases are scarce.  One point
+correctly prefers the linear map when phases are scarce
+(Supplemental Table~\ref{tab:e5_n_cal}).  One point
 ($n_{\rm cal}=9$) is a visible selection failure---with only $7$ fitting phases
 the holdout score picks an MLP variant, which gains $12.1$ dB instead of the
 $\sim25$ dB the linear map delivers---and we report it as
 the honest failure mode of data-driven selection at very small budgets.  Along
 the precision axis, targets estimated from as few as $512$ shots per
 calibration phase are as good as exact targets ($24.5$ versus $25.7$ dB
-reduction), so the noiseless target may itself come from a modest device run
+reduction; Supplemental Table~\ref{tab:e5_cal_shots}), so the noiseless target
+may itself come from a modest device run
 or from a classical model with sampling error.  Both axes confirm that the
 resource consumed by \dvaqem{} is the standard VAQEM one---tens of calibrated
 phase points---and not tomography.
@@ -758,9 +890,12 @@ to $4.6\times10^{-3}$ dB of Cram\'er--Rao penalty under gate noise.  On this
 $(N+1)$-dimensional space a small parametric map, trained on calibration data
 alone and selected by a held-out calibration score, reduces the mean squared
 phase error of an eight-qubit variational interferometer by $33.2$ dB at
-infinite shots and closes $65$--$76\,\%$ of the decibel gap to the noiseless
+infinite shots (95\% paired bootstrap CI $[27.8,38.0]$) and closes
+$65$--$76\,\%$ of the decibel gap to the noiseless
 device at $256$--$4096$ shots, beating zero-noise extrapolation in all sixteen
-noise settings and matching noise-aware decoder retraining at finite shots with
+noise settings (exact sign test $p=3.1\times10^{-5}$, every per-setting paired
+interval excluding zero) and matching noise-aware decoder retraining at finite
+shots (exact Wilcoxon $p\ge0.10$) with
 two orders of magnitude fewer parameters.  A shot-aware objective built on the
 exact delta-method variance makes the mitigation aware of the operating shot
 budget and validates its own error bars analytically.  The approach scales to
@@ -779,15 +914,37 @@ Appendix~\ref{app:validation} possible.
 \end{acknowledgments}
 
 \bigskip\noindent
-\textbf{Code and data availability}  All code (simulator, mitigation suite,
-experiment drivers, figure and table generators) and all result files,
-including the machine-readable digest of every number quoted here, are
-archived with the manuscript source in the accompanying repository
-\texttt{D-VAQEM} (\texttt{code/} for the simulator,
-mitigation suite and drivers; \texttt{results/} for every
-result file quoted here; \texttt{paper/} for the manuscript sources and the
-generated tables).  The VQ-CNNI interferometer checkpoints and the
-companion study are at \url{https://github.com/RichardYang88/VQ-CNNI}.
+\textbf{Code and data availability}  All code (exact density-matrix simulator,
+mitigation suite, experiment drivers, figure and table generators) and all
+result files, including the machine-readable digest of every number quoted here,
+are publicly archived in the accompanying repository
+\url{https://github.com/RichardYang88/D-VAQEM}, with a versioned long-term copy
+and DOI at Zenodo.%
+% TODO(author): confirm the public repository URL and replace the Zenodo
+% placeholder below with the DOI minted for the archived snapshot.
+\footnote{Long-term archive: \url{https://doi.org/10.5281/zenodo.PLACEHOLDER}
+(DOI to be minted for the accepted version).}
+The repository contains \texttt{code/} (simulator, mitigation suite and
+drivers), \texttt{results/} (every result file quoted here, including
+\texttt{paper\_numbers.md} and \texttt{run\_manifest.json}),
+\texttt{models/} (interferometer checkpoints for $N=10$), \texttt{figures/} and
+\texttt{paper/} (manuscript sources and generated tables); a disk cache of exact
+density-matrix datasets makes re-runs cheap, and
+\texttt{results/simulator\_validation.txt} records the $53$-check
+cross-validation of the simulator, including the independent PennyLane
+density-matrix check.  The VQ-CNNI interferometer checkpoints and the companion
+study are at \url{https://github.com/RichardYang88/VQ-CNNI}.
+
+\bigskip\noindent
+\textbf{Author contributions}  H.~Y. and Y.-C.~W. conceived the study.
+Y.-C.~W. implemented the simulator, the mitigation suite and the experiment
+drivers, performed the numerical studies, and generated all figures and tables.
+Both authors derived the analytic results, analysed the data, and wrote and
+approved the manuscript.%
+% TODO(author): confirm the contribution split and the author initials/order.
+
+\bigskip\noindent
+\textbf{Conflict of interest}  The authors declare no competing interests.
 
 \appendix
 \onecolumngrid

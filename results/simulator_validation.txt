@@ -60,4 +60,4 @@ PennyLane 0.42.3 cross-check at N=4
 [PASS] PennyLane default.mixed vs Kraus DM: bit_flip p=0.02 fold=3  max|d|=3.48e-13  (0.1 s PL)
 [PASS] PennyLane readout BitFlip vs probs_dm(readout_p)  max|d|=6.05e-15
 
-53 passed, 0 failed  (67.3 s)
+53 passed, 0 failed  (68.9 s)

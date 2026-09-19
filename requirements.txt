@@ -1,0 +1,37 @@
+# D-VAQEM -- exact Python dependencies of code/
+#
+# Versions verified on the reference machine (2026-09).  Two environments are
+# used, as documented in README.md:
+#
+#   main venv (../VQ-CNNI/.venv)   pip install -r requirements.txt
+#       -> simulator, mitigation suite, all experiment drivers, figures, tables
+#   ./.venv-pl                     pip install -r requirements.txt
+#                                  pip install pennylane pennylane-lightning
+#       -> only code/validate_simulator.py needs PennyLane
+#
+# install.sh reads this file line by line and skips blank/comment lines.
+
+# --- core: exact density-matrix simulator, mitigation suite, drivers ---------
+numpy==2.2.6
+# autograd >= 1.9 is REQUIRED, not merely recommended: vaqem_lib deliberately
+# builds gate_real_block() from plain-numpy cos/sin so that autograd.grad can
+# differentiate the whole statevector simulation.  That only works because
+# ArrayBox implements __array_ufunc__, which autograd added in 1.9.  With
+# autograd 1.8.0 the gradient cross-check dies with
+#   TypeError: loop of ufunc does not support argument 0 of type ArrayBox
+#   which has no callable cos method
+# (validate_simulator.py, internal_checks).  Verified: 1.8.0 fails, 1.9.1 passes.
+autograd==1.9.1
+
+# --- figures: code/make_figures.py ------------------------------------------
+matplotlib==3.10.9
+
+# --- numerical helpers / cross-validation utilities --------------------------
+scipy==1.15.3
+
+# --- optional: independent PennyLane density-matrix cross-check --------------
+# code/validate_simulator.py imports PennyLane inside a try/except and reports
+# the cross-check as skipped when it is absent, so it is deliberately NOT
+# pinned here; install it into ./.venv-pl (see README.md).
+# pennylane
+# pennylane-lightning

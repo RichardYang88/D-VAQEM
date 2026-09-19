@@ -10,9 +10,9 @@ class as the companion VQ-CNNI manuscript in `../../VQ-CNNI/paper/`).
 |---|---|
 | `manuscript.tex` | the draft: abstract, 6 sections, 2 appendices (proofs, simulator validation), 6 figures, 4 main-text tables |
 | `tables.tex` | **generated** main-text Tables I–III (`code/make_tables.py`) |
-| `tables_supplement.tex` | **generated** Supplemental Tables S1–S9 (full per-setting matrices, E1/E3/E5 tables, seed and ablation tables) |
+| `tables_supplement.tex` | **generated** Supplemental Tables S1–S12 (full per-setting matrices, E1/E3/E5 tables, seed and ablation tables, and S10–S12: the paired bootstrap confidence intervals, the per-setting ZNE comparison and the claim-by-claim verdict table) |
 | `references.bib` | bibliography (companion-paper entries + QEM / metrology / statistics entries) |
-| `check_tex.py` | integrity checker: environment balance, `\ref`/`\label`, `\cite` vs bib keys, truncation heuristic |
+| `check_tex.py` | integrity checker: environment balance, `\ref`/`\label`, `\cite` vs bib keys, truncation heuristic, **plus** a cross-check that every statistical figure and every wall-clock cost quoted in the prose is re-derived from `../results/*.json` (exits non-zero on a mismatch) |
 | `../figures/` | **generated** figures (PDF for the manuscript, PNG for inspection) |
 
 ## Building
@@ -69,10 +69,19 @@ label/reference resolution, citation keys and figure paths.
 ```bash
 cd ../code
 python collect_numbers.py --tag final     # results/paper_numbers.{md,json}
+                                          #   (+ results/ci_final.json, see below)
 python make_tables.py     --tag final     # paper/tables*.tex
 python make_figures.py    --tag final     # ../figures/fig*.{pdf,png}
-python check_tex.py                       # manuscript integrity
+cd ../paper && python check_tex.py        # manuscript integrity + number audit
 ```
+
+`collect_numbers.py` calls `bootstrap_ci.build()` on the headline sweep and writes
+`../results/ci_final.json`, the paired bootstrap intervals and exact tests behind
+Supplemental Tables S10–S12; `bootstrap_ci.py` can also be run standalone
+(`python bootstrap_ci.py --tag final`) and prints the same digest.  It needs the
+per-phase / per-trial arrays that `run_experiments.metrics(detail=True)` stores,
+so a sweep produced before that change yields no intervals (the digest says so
+explicitly rather than failing silently).
 
 Every number in `manuscript.tex` is taken from
 `../results/paper_numbers.md` (machine-readable mirror:
@@ -90,6 +99,10 @@ drift apart.  See `../README.md` for how the results themselves were produced.
   page breaks.  The table widths are checked numerically here (`\fitwidth`,
   compact/rotated headers), but no TeX engine is installed on the analysis
   machine, so the final overfull-box check has to happen on Overleaf.
-* `\preprint{APS/123-QED}` is still a placeholder; remove it for submission.
-* The code-availability statement names the repository but carries no public
-  URL yet; insert one when D-VAQEM is made public.
+* The code-availability statement now carries a public repository URL and a
+  Zenodo footnote, but the DOI is still the literal placeholder
+  `10.5281/zenodo.PLACEHOLDER`; mint the archive on acceptance and replace it
+  (search for `TODO(author)` in `manuscript.tex`).
+* Author contributions and the conflict-of-interest statement were added with a
+  plausible split; confirm the wording and the initials
+  (second `TODO(author)` marker in `manuscript.tex`).

@@ -28,6 +28,12 @@ GROUPS = (
     ("reference", ("noiseless",)),
     ("unmitigated", ("none",)),
     ("ZNE", ("zne_rich", "zne_poly1", "zne_poly2")),
+    # Readout-error mitigation with a *calibrated* assignment matrix: no noise
+    # model, fitted on the same calibration phases as the variational maps, so
+    # it belongs with the other calibration-only baselines rather than with the
+    # genie group below (which is the same inversion driven by the analytic
+    # flip rate from the exact noise model).
+    ("readout mitigation", ("linv_calib",)),
     ("D-VAQEM", ("dvaqem_lin_l2", "dvaqem_lin_ce", "dvaqem_lin_mse",
                  "dvaqem_mlp_l2", "dvaqem_mlp_ce", "dvaqem_mlp_fisher",
                  "dvaqem_mlp_mse")),
@@ -403,6 +409,455 @@ def sec_e2b(rep, idx_inf, settings, meta, rows):
 
 
 # ======================================================================
+# CI  paired bootstrap confidence intervals and exact tests
+# ======================================================================
+def sec_ci(rep, res, tag, n_boot=20000, seed=0, conf=0.95):
+    """Attach intervals and significance tests to the headline E2 claims.
+
+    Delegates to :mod:`bootstrap_ci`, which resamples the per-phase squared
+    errors (infinite shots) or the per-Monte-Carlo-trial MSEs (finite shots) that
+    ``run_experiments.metrics(detail=True)`` stores.  Writes
+    ``results/ci_<tag>.json`` and digests it here, so the manuscript can quote
+    intervals from the same single source of truth as every other number.
+    """
+    import bootstrap_ci as bc
+
+    rep.h(2, f"Statistical validation -- paired bootstrap CIs and exact tests "
+             f"({tag})")
+    path = os.path.join(res, f"{tag}_sweep.json")
+    if not os.path.exists(path):
+        rep.p(f"**UNAVAILABLE**: no `{os.path.basename(path)}`.")
+        rep.set("ci_available", 0.0)
+        return None
+    rows = load(path)
+    try:
+        n_id, wdb, wrel = bc.selfcheck(rows)
+    except AssertionError as exc:
+        rep.p(f"**UNAVAILABLE**: {exc}")
+        rep.set("ci_available", 0.0)
+        return None
+    if n_id == 0:
+        rep.p("**UNAVAILABLE**: this sweep carries no per-phase or per-trial "
+              "arrays (it predates `metrics(detail=True)`). Re-run "
+              "`run_experiments.py` to generate them.")
+        rep.set("ci_available", 0.0)
+        return None
+
+    out = bc.build(rows, n_boot=n_boot, seed=seed, conf=conf)
+    out["meta"]["source"] = os.path.basename(path)
+    dest = os.path.join(res, f"ci_{tag}.json")
+    with open(dest, "w") as fh:
+        json.dump(out, fh, indent=1, default=float)
+    pct = int(round(conf * 100))
+    rep.set("ci_available", 1.0)
+    rep.set("ci_n_boot", float(n_boot))
+    rep.set("ci_conf", float(conf))
+    rep.set("ci_selfcheck_n", float(n_id))
+    rep.set("ci_selfcheck_worst_db", float(wdb))
+    rep.set("ci_selfcheck_worst_rel", float(wrel))
+    rep.p(f"Paired percentile bootstrap, B = {n_boot}, {pct}% intervals, "
+          f"seed = {seed}; written to `{os.path.basename(dest)}`.  Resampling "
+          "unit: the held-out test phases at infinite shots and the "
+          "Monte-Carlo trials at finite shots.  All methods share the sampler "
+          "seed `seed + S` at a given shot budget, so every comparison there is "
+          "*paired* and the paired bootstrap is the matching interval estimator. "
+          "Aggregates over the noise settings resample the settings; the sign and "
+          "Wilcoxon signed-rank tests over the settings are exact (the Wilcoxon "
+          "null is enumerated by a subset-sum recursion, no normal "
+          f"approximation).  Self-check: {n_id} array identities reproduce the "
+          f"stored `mse`/`mse_db` exactly (worst dB deviation {wdb:.1e}, worst "
+          f"relative deviation {wrel:.1e}).")
+
+    rep.h(3, f"Mean gain of the selected D-VAQEM variant, with {pct}% CIs")
+    body = []
+    for key in bc.SHOT_KEYS:
+        if key not in out["aggregates"]:
+            continue
+        a = out["aggregates"][key]
+        for name, lab in bc.COMPARISONS:
+            mu = a[name].get("mean")
+            if not mu:
+                continue
+            e = a[name]
+            body.append([key, lab, f"{mu['mean']:+.2f}",
+                         f"[{mu['ci_lo']:+.2f}, {mu['ci_hi']:+.2f}]",
+                         f"{e['sign']['n_positive']}/{e['sign']['n']}",
+                         f"{e['sign']['p_two_sided']:.2g}",
+                         f"{e['wilcoxon']['p_two_sided']:.2g}"])
+        for zm in bc.ZNE + ("best_zne",):
+            mu = a[zm].get("mean")
+            if not mu:
+                continue
+            e = a[zm]
+            lab = ("best ZNE variant (a posteriori)" if zm == "best_zne" else zm)
+            body.append([key, lab, f"{mu['mean']:+.2f}",
+                         f"[{mu['ci_lo']:+.2f}, {mu['ci_hi']:+.2f}]",
+                         f"{e['sign']['n_positive']}/{e['sign']['n']}",
+                         f"{e['sign']['p_two_sided']:.2g}",
+                         f"{e['wilcoxon']['p_two_sided']:.2g}"])
+        c = a.get("closure_from_means")
+        if c:
+            body.append([key, "gap to the noiseless device closed (%)",
+                         f"{c['point']:.1f}",
+                         f"[{c['ci_lo']:.1f}, {c['ci_hi']:.1f}]", "--", "--", "--"])
+    rep.table(["shots", "comparison", "mean gain (dB)", f"{pct}% CI",
+               "wins", "sign p", "Wilcoxon p"], body)
+    rep.p("Positive gain = D-VAQEM is better, so the two genie baselines "
+          "(known-noise-model oracle, exact sector inverse) appear as negative "
+          "entries and read as the residual gap.  The `exact sector inverse` row "
+          "covers only the flip-equivalent channels, for which that baseline "
+          "exists at all.")
+
+    # ---- per-setting evidence for "beats ZNE in all sixteen settings" ------
+    per = out["per_setting"].get("inf", {})
+    if per:
+        rep.h(3, "Per-setting gain over the best ZNE variant (infinite shots)")
+        body = []
+        for s in bc.setting_sort(per):
+            e = per[s]
+            bz = e.get("best_zne")
+            if not bz:
+                continue
+            body.append([s, e["selected"].replace("dvaqem_", ""),
+                         e.get("best_zne_variant", "?").replace("zne_", ""),
+                         f"{e['mse_db']:.2f}", f"{bz['point']:+.2f}",
+                         f"[{bz['ci_lo']:+.2f}, {bz['ci_hi']:+.2f}]",
+                         f"{bz['p_one_sided']:.2g}",
+                         "yes" if bz["ci_lo"] > 0 else "no"])
+        rep.table(["setting", "selected", "best ZNE", "D-VAQEM MSE (dB)",
+                   "gain (dB)", f"{pct}% CI", "one-sided p", "CI excludes 0"],
+                  body)
+        rep.p("The `best ZNE` column is picked a posteriori on the same data, so "
+              "its interval is anti-conservative; the per-variant rows of the "
+              "previous table (`zne_rich`/`zne_poly1`/`zne_poly2`) are the "
+              "selection-free evidence and they agree.")
+
+    # ---- every headline sentence of the manuscript, as a computed verdict ---
+    cl = out["claims"]
+    rep.h(3, "Claim-by-claim verdicts")
+
+    def _v(d, k="mean"):
+        return d.get(k) if d else float("nan")
+
+    def _ci(d):
+        return ("--" if not d else
+                f"[{_v(d, 'ci_lo'):+.2f}, {_v(d, 'ci_hi'):+.2f}]")
+
+    body = []
+    mr = cl.get("mean_reduction_inf_db")
+    ag = out["aggregates"].get("inf", {})
+    if mr:
+        for k, val in (("db", _v(mr)), ("lo", _v(mr, "ci_lo")),
+                       ("hi", _v(mr, "ci_hi")), ("min", _v(mr, "min")),
+                       ("max", _v(mr, "max")), ("n", float(mr["n"]))):
+            rep.set(f"ci_gain_vs_none_inf_{k}", float(val))
+        rep.set("ci_gain_vs_none_inf_sign_p", ag["none"]["sign"]["p_two_sided"])
+        rep.set("ci_gain_vs_none_inf_wilcoxon_p",
+                ag["none"]["wilcoxon"]["p_two_sided"])
+        body.append(["mean MSE reduction at infinite shots",
+                     f"{_v(mr):.2f} dB", _ci(mr),
+                     f"sign/Wilcoxon p = {ag['none']['sign']['p_two_sided']:.1g}, "
+                     f"wins {ag['none']['sign']['n_positive']}/{mr['n']}",
+                     "supported" if _v(mr, "ci_lo") > 0 else "NOT supported"])
+    mm = cl.get("min_gain_vs_best_zne_inf")
+    pv = cl.get("per_variant_inf", {})
+    if mm and pv:
+        n_win = cl.get("beats_best_zne_settings_inf", 0)
+        n_all = cl.get("n_settings_inf", 0)
+        n_excl = cl.get("beats_best_zne_ci_excludes_zero_inf", 0)
+        for k, val in (("wins", float(n_win)), ("n", float(n_all)),
+                       ("ci_excludes_zero", float(n_excl)),
+                       ("min_gain_db", _v(mm, "point")),
+                       ("min_gain_lo", _v(mm, "ci_lo")),
+                       ("min_gain_hi", _v(mm, "ci_hi")),
+                       ("min_gain_p", mm["p_one_sided"]),
+                       ("weakest_variant_mean_db",
+                        float(cl["weakest_variant_mean_gain_db"])),
+                       ("least_favourable_db",
+                        float(cl["least_favourable_gain_db"])),
+                       ("all_variants_all_settings",
+                        float(cl["all_variants_win_all_settings"]))):
+            rep.set(f"ci_vs_zne_inf_{k}", float(val))
+        rep.set("ci_vs_zne_inf_min_gain_setting", mm["setting"])
+        rep.set("ci_vs_zne_inf_weakest_variant", cl["weakest_variant"])
+        lf = cl.get("least_favourable_pair") or {}
+        for k in ("point", "ci_lo", "ci_hi", "p_one_sided"):
+            if k in lf:
+                rep.set(f"ci_vs_zne_inf_lf_{k}", float(lf[k]))
+        for k in ("setting", "variant"):
+            if k in lf:
+                rep.set(f"ci_vs_zne_inf_lf_{k}", lf[k])
+        for zm, v in pv.items():
+            for k in ("mean", "ci_lo", "ci_hi", "min", "max", "wins", "n"):
+                rep.set(f"ci_vs_{zm}_inf_{k}", float(v[k]))
+            rep.set(f"ci_vs_{zm}_inf_sign_p", v["p_sign"])
+            rep.set(f"ci_vs_{zm}_inf_wilcoxon_p", v["p_wilcoxon"])
+        body.append(["beats ZNE in all sixteen noise settings",
+                     f"{n_win}/{n_all} wins; worst setting "
+                     f"{_v(mm, 'point'):+.2f} dB ({mm['setting']})",
+                     _ci(mm),
+                     f"one-sided bootstrap p = {mm['p_one_sided']:.1g}; CI "
+                     f"excludes 0 in {n_excl}/{n_all}",
+                     "supported" if n_win == n_all and _v(mm, "ci_lo") > 0
+                     else "NOT supported"])
+        # one row per *fixed* comparator: this is the selection-free evidence,
+        # whereas the row above picks the best ZNE variant a posteriori
+        for zm in ("zne_rich", "zne_poly1", "zne_poly2"):
+            v = pv.get(zm)
+            if not v:
+                continue
+            body.append([f"...vs the fixed comparator `{zm}` (selection-free)",
+                         f"{v['mean']:+.2f} dB mean, {v['min']:+.2f} dB worst "
+                         f"setting",
+                         f"[{v['ci_lo']:+.2f}, {v['ci_hi']:+.2f}]",
+                         f"wins {v['wins']:.0f}/{v['n']:.0f}, sign p = "
+                         f"{v['p_sign']:.1g}, Wilcoxon p = "
+                         f"{v['p_wilcoxon']:.1g}",
+                         "supported" if v["wins"] == v["n"] and v["ci_lo"] > 0
+                         else "NOT supported"])
+    og = ag.get("oracle_ml", {}).get("mean")
+    if og:
+        rep.set("ci_oracle_gap_inf_db", _v(og))
+        rep.set("ci_oracle_gap_inf_lo", _v(og, "ci_lo"))
+        rep.set("ci_oracle_gap_inf_hi", _v(og, "ci_hi"))
+        body.append(["residual gap to the known-noise-model oracle",
+                     f"{_v(og):.2f} dB", _ci(og), "--", "quantified"])
+    return _sec_ci_finite(rep, cl, body, _v, _ci, pct, out, rows, res, tag)
+
+
+def _sec_ci_readout(rep, out, rows, body, _v, _ci, pct, res, tag):
+    """Readout-error-mitigation comparators: intervals, and where they break.
+
+    Two comparators share one inversion machinery and differ only in where the
+    assignment matrix comes from: ``linv_known`` inverts the analytic sector
+    kernel at the *exact* effective flip rate (a genie), while ``linv_calib``
+    estimates that rate from the calibration data alone, on the same calibration
+    phases the variational maps are fitted on.  Recording both is what makes the
+    comparison interpretable -- the genie is undefined on the channels that are
+    not flip-equivalent, and the calibrated one is defined everywhere but
+    inherits the model mismatch -- and it exposes the failure mode that decides
+    the comparison at realistic shot counts: an exactly inverted assignment
+    matrix amplifies sampling noise, so its infinite-shot optimality does not
+    survive contact with a finite data set.
+    """
+    ag = out.get("aggregates", {})
+    keys = [k for k in ("inf", "S256", "S1024", "S4096") if k in ag]
+    lab = {"inf": "infinite shots", "S256": "256 shots", "S1024": "1024 shots",
+           "S4096": "4096 shots"}
+
+    rep.h(3, "Readout-error mitigation as a comparator")
+    for name, short in (("linv_calib", "readout"), ("linv_known", "linvknown")):
+        for key in keys:
+            e = ag[key].get(name)
+            mu = (e or {}).get("mean")
+            if not mu:
+                continue
+            sg, wl = e["sign"], e["wilcoxon"]
+            for k, val in (("db", _v(mu)), ("lo", _v(mu, "ci_lo")),
+                           ("hi", _v(mu, "ci_hi")),
+                           ("min", float(mu.get("min", float("nan")))),
+                           ("max", float(mu.get("max", float("nan")))),
+                           ("wins", float(sg["n_positive"])),
+                           ("n", float(sg["n"]))):
+                rep.set(f"ci_vs_{short}_{key}_{k}", float(val))
+            rep.set(f"ci_vs_{short}_{key}_sign_p", float(sg["p_two_sided"]))
+            rep.set(f"ci_vs_{short}_{key}_wilcoxon_p", float(wl["p_two_sided"]))
+            rep.set(f"ci_vs_{short}_{key}_excludes_zero",
+                    1.0 if (_v(mu, "ci_lo") > 0 or _v(mu, "ci_hi") < 0) else 0.0)
+            if name == "linv_calib":
+                body.append(
+                    [f"beats calibrated readout mitigation at {lab[key]}",
+                     f"{_v(mu):+.2f} dB", _ci(mu),
+                     f"wins {sg['n_positive']}/{sg['n']}, sign p = "
+                     f"{sg['p_two_sided']:.1g}, Wilcoxon p = "
+                     f"{wl['p_two_sided']:.1g}",
+                     "supported" if _v(mu, "ci_lo") > 0
+                     else "NOT supported (CI includes 0)"])
+
+    # where the calibrated inverse is actively harmful: cells in which inverting
+    # the assignment matrix leaves the estimate *worse* than not mitigating, the
+    # sampling-noise amplification of an ill-conditioned inverse.
+    if rows:
+        d = {(r["setting"], r["method"], r["shots"]): r for r in rows}
+        settings = sorted({r["setting"] for r in rows})
+        cells = [(s, k) for s in settings for k in keys]
+        worse = [(s, k) for s, k in cells
+                 if (s, "linv_calib", k) in d and (s, "none", k) in d
+                 and d[(s, "linv_calib", k)]["mse_db"] > d[(s, "none", k)]["mse_db"]]
+        rep.set("readout_amplify_cells", float(len(worse)))
+        rep.set("readout_amplify_total", float(len(cells)))
+        rep.set("readout_amplify_finite_cells",
+                float(sum(1 for s, k in worse if k != "inf")))
+        rep.set("readout_amplify_finite_total",
+                float(len(settings) * max(0, len(keys) - 1)))
+        rep.p("Convention note: `mse_db` is the mean over Monte-Carlo trials of "
+              "the per-trial dB value (`agg` averages every scalar field "
+              "separately), whereas `10*log10(mse)` is the dB of the "
+              "trial-averaged MSE; the two differ by a Jensen gap that is "
+              "largest at the smallest shot budget (0.11 dB at S=256) and "
+              "exactly zero at infinite shots.  The cell counts above use "
+              "`mse_db`, the convention every other dB figure in this report "
+              "uses.  One further cell (`deph_0.02` at S=256) flips sign "
+              "between the two conventions, at a margin of 0.013 dB, i.e. it is "
+              "a tie either way.")
+        rep.p(f"Sampling-noise amplification: in {len(worse)}/{len(cells)} "
+              f"(setting, shot-budget) cells the calibrated inverse is *worse* "
+              f"than not mitigating at all"
+              + (f" ({', '.join(f'{s}@{k}' for s, k in worse)})" if worse else "")
+              + ".  Every one of them is at finite shots: the inversion is "
+                "exact in the infinite-shot limit and ill-conditioned in "
+                "practice, which is why the comparison reverses between the "
+                "first row of the table above and the rest.")
+
+    # how good the calibration is, and how often the genie version exists at all
+    mp = os.path.join(res, f"{tag}_sweep_meta.json")
+    if os.path.exists(mp):
+        metas = load(mp)
+        qe = [(s, m["linv_calib"]["q_hat"], m["linv_calib"]["f_eff"])
+              for s, m in metas.items() if "linv_calib" in m]
+        avail = [s for s, m in metas.items()
+                 if m.get("linv_known", {}).get("f_eff") is not None]
+        ro = [(s, q, f) for s, q, f in qe if f is not None and abs(f - q) < 1e-9]
+        fe = [(s, abs(q - f)) for s, q, f in qe if f is not None]
+        rep.set("readout_genie_defined_settings", float(len(avail)))
+        rep.set("readout_n_settings", float(len(metas)))
+        rep.set("readout_calib_defined_settings", float(len(qe)))
+        if fe:
+            rep.set("readout_qhat_max_abs_err", float(max(v for _, v in fe)))
+        rep.set("readout_qhat_exact_settings", float(len(ro)))
+        # Restrict the rate-recovery diagnostic to the settings where the flip
+        # family actually contains the channel (pure readout noise), and record
+        # how often the *calibrated* rate fits the exact channel better than the
+        # analytic flip-equivalent surrogate does.  Both are what make the
+        # readout baseline a strong comparator rather than a straw man: its
+        # calibration is essentially exact where the model is right, and it can
+        # beat the genie rate where the surrogate is only approximate.
+        pure = [(s, q, f) for s, q, f in qe
+                if f is not None and s.startswith("readout")]
+        if pure:
+            rep.set("readout_qhat_max_abs_err_pure",
+                    float(max(abs(q - f) for _, q, f in pure)))
+        beats = [s for s, m in metas.items()
+                 if m.get("linv_calib", {}).get("calib_beats_analytic")]
+        scored = [s for s, m in metas.items()
+                  if m.get("linv_calib", {}).get("calib_rms_resid_at_f_eff")
+                  is not None]
+        rep.set("readout_calib_beats_analytic_settings", float(len(beats)))
+        rep.set("readout_calib_scored_settings", float(len(scored)))
+        if beats:
+            rep.p(f"On {len(beats)} of the {len(scored)} settings where the "
+                  f"analytic rate exists at all, the *calibrated* rate fits the "
+                  f"exact channel better than the analytic flip-equivalent "
+                  f"surrogate does ({', '.join(sorted(beats))}), on the same "
+                  f"objective and the same calibration phases.  The surrogate is "
+                  f"therefore not even the best member of its own family there, "
+                  f"and the calibrated baseline is the stronger of the two "
+                  f"inversion baselines rather than a straw man.")
+        rep.p(f"The genie inverse exists in only {len(avail)}/{len(metas)} "
+              f"settings (it needs an analytic flip rate, so it is undefined for "
+              f"dephasing and amplitude damping), whereas the calibrated one is "
+              f"defined in {len(qe)}/{len(metas)}.  On the {len(ro)} pure-readout "
+              f"settings the calibrated rate reproduces the true one to "
+              f"{max((abs(q - f) for _, q, f in qe if f is not None and abs(q - f) < 1e-9), default=float('nan')):.1e}, "
+              f"i.e. the baseline is not handicapped by a bad estimate -- where "
+              f"it loses, it loses on the *model*, not on the calibration.")
+    # On the pure-readout settings the flip family *contains* the exact channel,
+    # so the inversion reaches the noiseless floor and this is the one regime
+    # where a readout correction cannot be beaten at infinite shots.  Record all
+    # three levels explicitly, because the manuscript quotes the margin between
+    # the learned map and the floor and that margin is what keeps the claim
+    # honest (the learned map reaches the floor to within 0.06 dB, it does not
+    # match it bit for bit).
+    if rows:
+        d = {(r["setting"], r["method"], r["shots"]): r for r in rows}
+        ro = [s for s in sorted({r["setting"] for r in rows})
+              if s.startswith("readout")]
+        if ro:
+            def _mean_db(method):
+                v = [d[(s, method, "inf")]["mse_db"] for s in ro
+                     if (s, method, "inf") in d]
+                return float(np.mean(v)) if v else float("nan")
+            for nm, method in (("floor", "noiseless"),
+                               ("linv", "linv_calib"),
+                               ("dvaqem_l2", "dvaqem_lin_l2")):
+                rep.set(f"readout_inf_{nm}_db", _mean_db(method))
+            rep.set("readout_inf_n_settings", float(len(ro)))
+            rep.set("readout_inf_l2_margin_db",
+                    _mean_db("dvaqem_lin_l2") - _mean_db("noiseless"))
+            margins = [d[(s, "dvaqem_lin_l2", "inf")]["mse_db"]
+                       - d[(s, "noiseless", "inf")]["mse_db"] for s in ro
+                       if (s, "dvaqem_lin_l2", "inf") in d]
+            if margins:
+                rep.set("readout_inf_l2_margin_min_db", float(min(margins)))
+                rep.set("readout_inf_l2_margin_max_db", float(max(margins)))
+                rep.set("readout_inf_linv_margin_max_db",
+                        float(max(abs(d[(s, "linv_calib", "inf")]["mse_db"]
+                                      - d[(s, "noiseless", "inf")]["mse_db"])
+                                  for s in ro
+                                  if (s, "linv_calib", "inf") in d)))
+            # the weakest readout setting is where the learned map comes closest
+            # to the floor, so quote it explicitly rather than letting the mean
+            # over the four rates hide the spread
+            weakest = min(ro, key=lambda s: d[(s, "none", "inf")]["mse_db"]) \
+                if all((s, "none", "inf") in d for s in ro) else ro[0]
+            if (weakest, "dvaqem_lin_l2", "inf") in d:
+                rep.set("readout_inf_weakest_setting", weakest)
+                rep.set("readout_inf_l2_db_weakest",
+                        float(d[(weakest, "dvaqem_lin_l2", "inf")]["mse_db"]))
+            rep.p(f"On the {len(ro)} pure-readout settings the binomial flip "
+                  f"family contains the exact channel, so at infinite shots the "
+                  f"calibrated inverse reaches the noiseless floor "
+                  f"({_mean_db('linv'):.1f} dB vs {_mean_db('floor'):.1f} dB) and "
+                  f"the $\\ell_2$ map comes to within "
+                  f"{abs(_mean_db('dvaqem_lin_l2') - _mean_db('noiseless')):.2f} dB "
+                  f"of it ({_mean_db('dvaqem_l2'):.1f} dB).  This is the one "
+                  f"regime in which a correctly calibrated readout correction is "
+                  f"not beatable in the infinite-shot limit, and the paper says "
+                  f"so rather than averaging over it.")
+    return body
+
+
+def _sec_ci_finite(rep, cl, body, _v, _ci, pct, out, rows=None, res=None,
+                   tag="final"):
+    """Finite-shot half of the claim table (split out to keep sec_ci readable)."""
+    for key in ("S256", "S1024", "S4096"):
+        r, c = cl.get(f"retrain_{key}"), cl.get(f"closure_{key}_pct")
+        gn = cl.get(f"mean_reduction_{key}_db")
+        if gn:
+            rep.set(f"ci_gain_vs_none_{key}_db", _v(gn))
+            rep.set(f"ci_gain_vs_none_{key}_lo", _v(gn, "ci_lo"))
+            rep.set(f"ci_gain_vs_none_{key}_hi", _v(gn, "ci_hi"))
+        if r and r["mean"]:
+            mu = r["mean"]
+            for k, val in (("db", _v(mu)), ("lo", _v(mu, "ci_lo")),
+                           ("hi", _v(mu, "ci_hi"))):
+                rep.set(f"ci_vs_retrain_{key}_{k}", float(val))
+            rep.set(f"ci_vs_retrain_{key}_sign_p", r["sign"]["p_two_sided"])
+            rep.set(f"ci_vs_retrain_{key}_wilcoxon_p",
+                    r["wilcoxon"]["p_two_sided"])
+            rep.set(f"ci_vs_retrain_{key}_wins", float(r["sign"]["n_positive"]))
+            body.append([f"matches decoder retraining at {key[1:]} shots",
+                         f"{_v(mu):+.2f} dB", _ci(mu),
+                         f"sign p = {r['sign']['p_two_sided']:.2g}, Wilcoxon p = "
+                         f"{r['wilcoxon']['p_two_sided']:.2g}, wins "
+                         f"{r['sign']['n_positive']}/{r['sign']['n']}",
+                         "supported (indistinguishable)"
+                         if r["wilcoxon"]["p_two_sided"] > 0.05
+                         else "NOT supported (differs significantly)"])
+        if c:
+            for k, val in (("pct", _v(c, "point")), ("lo", _v(c, "ci_lo")),
+                           ("hi", _v(c, "ci_hi"))):
+                rep.set(f"ci_closure_{key}_{k}", float(val))
+            body.append([f"fraction of the dB gap closed at {key[1:]} shots",
+                         f"{_v(c, 'point'):.1f} %",
+                         f"[{_v(c, 'ci_lo'):.1f}, {_v(c, 'ci_hi'):.1f}]",
+                         "--", "quantified"])
+    _sec_ci_readout(rep, out, rows, body, _v, _ci, pct, res, tag)
+    rep.table(["claim", "value", f"{pct}% CI", "test", "verdict"], body)
+    return out
+
+
+# ======================================================================
 # E3  finite shots: bias/variance split and delta-method validation
 # ======================================================================
 def sec_e3(rep, res, tag):
@@ -738,6 +1193,12 @@ def main():
     ap.add_argument("--tag", default="final")
     ap.add_argument("--res", default=os.path.join(HERE, os.pardir, "results"))
     ap.add_argument("--seeds", default="seed1,seed2")
+    ap.add_argument("--n-boot", type=int, default=20000,
+                    help="bootstrap replicates for the confidence intervals")
+    ap.add_argument("--boot-seed", type=int, default=0,
+                    help="seed of the bootstrap resampling (not of the experiment)")
+    ap.add_argument("--conf", type=float, default=0.95,
+                    help="confidence level of the percentile intervals")
     a = ap.parse_args()
     res = os.path.abspath(a.res)
     man = load(os.path.join(res, "run_manifest.json"))
@@ -753,6 +1214,7 @@ def main():
     sec_e1(rep, res, a.tag)
     idx_inf, settings, meta, rows = sec_e2(rep, res, a.tag)
     sec_e2b(rep, idx_inf, settings, meta, rows)
+    sec_ci(rep, res, a.tag, n_boot=a.n_boot, seed=a.boot_seed, conf=a.conf)
     sec_e3(rep, res, a.tag)
     sec_e4(rep, res, a.tag)
     sec_e5(rep, res, a.tag)

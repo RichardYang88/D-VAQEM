@@ -3,6 +3,24 @@
   "linv_known": {
    "f_eff": 0.04703736354268667
   },
+  "linv_calib": {
+   "q_hat": 0.04487199398925193,
+   "f_eff": 0.04703736354268667,
+   "abs_err_vs_f_eff": 0.002165369553434743,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.006846818469321935,
+   "calib_rms_resid_at_f_eff": 0.008905975945894025,
+   "calib_beats_analytic": true,
+   "calib_max_resid": 0.009156222784608073,
+   "calib_loss": 0.0007500627704295675,
+   "bracket": [
+    0.04487199398039461,
+    0.04487199399810924
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -65,7 +83,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.125394105911255,
+  "_fit_time_s": 21.346340656280518,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -530,6 +548,24 @@
   "linv_known": {
    "f_eff": 0.10962198580950411
   },
+  "linv_calib": {
+   "q_hat": 0.10728218447992591,
+   "f_eff": 0.10962198580950411,
+   "abs_err_vs_f_eff": 0.0023398013295782005,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.010215299678524355,
+   "calib_rms_resid_at_f_eff": 0.010890529015561754,
+   "calib_beats_analytic": true,
+   "calib_max_resid": 0.013974231893127314,
+   "calib_loss": 0.0016696375603529573,
+   "bracket": [
+    0.1072821844710686,
+    0.10728218448878322
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -592,7 +628,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.381511688232422,
+  "_fit_time_s": 21.56984281539917,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -1057,6 +1093,24 @@
   "linv_known": {
    "f_eff": 0.1957175608805613
   },
+  "linv_calib": {
+   "q_hat": 0.19744116520602,
+   "f_eff": 0.1957175608805613,
+   "abs_err_vs_f_eff": 0.0017236043254587052,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.009343757879455506,
+   "calib_rms_resid_at_f_eff": 0.00953466650357805,
+   "calib_beats_analytic": true,
+   "calib_max_resid": 0.01237386539690613,
+   "calib_loss": 0.0013968929809581895,
+   "bracket": [
+    0.19744116519716268,
+    0.1974411652148773
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -1119,7 +1173,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.982266902923584,
+  "_fit_time_s": 20.99512505531311,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -1584,6 +1638,24 @@
   "linv_known": {
    "f_eff": 0.3160714770206723
   },
+  "linv_calib": {
+   "q_hat": 0.3212824238965192,
+   "f_eff": 0.3160714770206723,
+   "abs_err_vs_f_eff": 0.005210946875846889,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.004868769057578989,
+   "calib_rms_resid_at_f_eff": 0.006469844810776156,
+   "calib_beats_analytic": true,
+   "calib_max_resid": 0.006484641515046393,
+   "calib_loss": 0.00037927859417661745,
+   "bracket": [
+    0.3212824238876618,
+    0.3212824239053765
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -1646,7 +1718,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 22.110532522201538,
+  "_fit_time_s": 21.831575632095337,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -2112,6 +2184,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.1256433025537827,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.013439352886878026,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.025406710975606202,
+   "calib_loss": 0.0028898592962885872,
+   "bracket": [
+    0.12564330254492537,
+    0.12564330256264
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -2174,7 +2264,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.775892972946167,
+  "_fit_time_s": 21.469722509384155,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -2640,6 +2730,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.22651542646775408,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.012015986301978565,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.023510982495567177,
+   "calib_loss": 0.002310142828949384,
+   "bracket": [
+    0.22651542645889675,
+    0.22651542647661138
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -2702,7 +2810,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.41835880279541,
+  "_fit_time_s": 21.093684911727905,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -3168,6 +3276,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.354450518521648,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.006916478973384183,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.013873298993813937,
+   "calib_loss": 0.0007654029022282484,
+   "bracket": [
+    0.3544505185127907,
+    0.35445051853050535
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -3230,7 +3356,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.89162540435791,
+  "_fit_time_s": 20.945034980773926,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -3696,6 +3822,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.4772427339948172,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.0003459511238678318,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.0007132300810643864,
+   "calib_loss": 1.914914881686654e-06,
+   "bracket": [
+    0.4772427339859599,
+    0.47724273400367456
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -3758,7 +3902,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 22.17292594909668,
+  "_fit_time_s": 20.8834228515625,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -4224,6 +4368,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.01898704020352316,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.01789162396935815,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.024771095199935055,
+   "calib_loss": 0.005121763332174576,
+   "bracket": [
+    0.018987040194665846,
+    0.01898704021238047
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -4286,7 +4448,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.50528383255005,
+  "_fit_time_s": 21.534260988235474,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -4752,6 +4914,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.04569206052770543,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.03677428302512567,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.04954078833789466,
+   "calib_loss": 0.021637566272192738,
+   "bracket": [
+    0.04569206051884812,
+    0.045692060536562745
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -4814,7 +4994,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.710368156433105,
+  "_fit_time_s": 21.04991388320923,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -5280,6 +5460,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.08579173786567995,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.057572323615405485,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.0754914117081447,
+   "calib_loss": 0.05303315914363163,
+   "bracket": [
+    0.08579173785682263,
+    0.08579173787453725
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -5342,7 +5540,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 22.229456901550293,
+  "_fit_time_s": 21.07082724571228,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -5808,6 +6006,24 @@
    "f_eff": null,
    "note": "noise not flip-equivalent: exact sector kernel unavailable"
   },
+  "linv_calib": {
+   "q_hat": 0.15208531663611818,
+   "f_eff": null,
+   "abs_err_vs_f_eff": null,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 0.08474864414045229,
+   "calib_rms_resid_at_f_eff": null,
+   "calib_beats_analytic": null,
+   "calib_max_resid": 0.10734853516293119,
+   "calib_loss": 0.1149173229383203,
+   "bracket": [
+    0.15208531662726085,
+    0.1520853166449755
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -5870,7 +6086,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 21.935714960098267,
+  "_fit_time_s": 22.277179956436157,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -6335,6 +6551,24 @@
   "linv_known": {
    "f_eff": 0.01
   },
+  "linv_calib": {
+   "q_hat": 0.009999999996231305,
+   "f_eff": 0.01,
+   "abs_err_vs_f_eff": 3.768695425176993e-12,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 1.3969904450458246e-11,
+   "calib_rms_resid_at_f_eff": 4.404080688572594e-16,
+   "calib_beats_analytic": false,
+   "calib_max_resid": 2.203143301508961e-11,
+   "calib_loss": 3.1225316856789296e-21,
+   "bracket": [
+    0.009999999987373992,
+    0.010000000005088617
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -6397,7 +6631,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 22.088867664337158,
+  "_fit_time_s": 21.82391595840454,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -6862,6 +7096,24 @@
   "linv_known": {
    "f_eff": 0.02
   },
+  "linv_calib": {
+   "q_hat": 0.019999999997288548,
+   "f_eff": 0.02,
+   "abs_err_vs_f_eff": 2.7114525902316444e-12,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 9.117271045727846e-12,
+   "calib_rms_resid_at_f_eff": 4.484260980005352e-16,
+   "calib_beats_analytic": false,
+   "calib_max_resid": 1.407129322415314e-11,
+   "calib_loss": 1.3299941011402773e-21,
+   "bracket": [
+    0.019999999988431237,
+    0.020000000006145862
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -6924,7 +7176,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 22.062466859817505,
+  "_fit_time_s": 21.359310150146484,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -7389,6 +7641,24 @@
   "linv_known": {
    "f_eff": 0.03
   },
+  "linv_calib": {
+   "q_hat": 0.03000000000151238,
+   "f_eff": 0.03,
+   "abs_err_vs_f_eff": 1.5123804986139078e-12,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 4.6231089761324715e-12,
+   "calib_rms_resid_at_f_eff": 2.6632781421204893e-16,
+   "calib_beats_analytic": false,
+   "calib_max_resid": 6.965239076980105e-12,
+   "calib_loss": 3.4197018568314605e-22,
+   "bracket": [
+    0.02999999999265507,
+    0.030000000010369694
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -7451,7 +7721,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 22.413926362991333,
+  "_fit_time_s": 22.458950519561768,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",
@@ -7916,6 +8186,24 @@
   "linv_known": {
    "f_eff": 0.05
   },
+  "linv_calib": {
+   "q_hat": 0.04999999999940624,
+   "f_eff": 0.05,
+   "abs_err_vs_f_eff": 5.937611513573415e-13,
+   "n_params_fit": 1,
+   "n_fit_phases": 16,
+   "calib_rms_resid": 1.5123485240494837e-12,
+   "calib_rms_resid_at_f_eff": 3.6560546583342417e-16,
+   "calib_beats_analytic": false,
+   "calib_max_resid": 2.1523901770792085e-12,
+   "calib_loss": 3.659516893111443e-23,
+   "bracket": [
+    0.04999999999054893,
+    0.05000000000826356
+   ],
+   "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+   "note": "assignment matrix calibrated from the calibration phases; no noise model, no test phases"
+  },
   "oracle": {
    "n_grid": 361,
    "grid_step": 0.017453292519943098,
@@ -7978,7 +8266,7 @@
    "kind": "poly",
    "degree": 2
   },
-  "_fit_time_s": 23.000916481018066,
+  "_fit_time_s": 21.97756052017212,
   "dvaqem_lin_l2": {
    "loss": "l2",
    "kind": "linear",

@@ -216,12 +216,23 @@ def fig1(tag, res, out, dpi):
                                     "readout_p": 0.0}
     cur = np.load(os.path.join(res, f"{tag}_fi_curves.npz"))
     grid = cur[f"{setting}__grid"]
+    # Panel b needs the exact dataset (rx.load_model -> the VQ-CNNI checkpoint,
+    # located by vl.vqcnni_root()) and the stored linear-map parameters.  This
+    # used to degrade silently to a two-panel figure when either was missing,
+    # which is how a fig1 that contradicted its own caption (panels a/b/c) and
+    # the \ref{fig:concept}c reference in the text ended up archived.  Fail
+    # loudly instead: an incomplete figure is worse than no figure.
     try:
         dist = distributions(setting, noise, meta, res=res)
-        ncol = 3
     except Exception as exc:                                  # pragma: no cover
-        print(f"  ! distribution panel skipped ({exc!r})")
-        dist, ncol = None, 2
+        raise RuntimeError(
+            "fig1 panel b could not be built.  It needs rx.load_model(8), i.e. "
+            "the VQ-CNNI checkpoint found by vl.vqcnni_root() ($VQCNNI_ROOT or a "
+            "sibling ../VQ-CNNI/), plus dvaqem_lin_mse['psi'] in "
+            f"{tag}_sweep_meta.json.  Refusing to emit a two-panel figure that "
+            "would contradict the caption.  Underlying error: "
+            f"{exc!r}") from exc
+    ncol = 3
     fig = plt.figure(figsize=(DOUBLE if ncol == 3 else 4.7, 2.55))
     gs = fig.add_gridspec(1, ncol, width_ratios=[2.0] + [1.0] * (ncol - 1),
                           wspace=0.32)

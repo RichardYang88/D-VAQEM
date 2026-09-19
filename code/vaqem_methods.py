@@ -85,6 +85,21 @@ def _sim_one(args):
 HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(HERE, os.pardir, "cache")
 
+# Provenance of the exact-simulation requests served so far.  The wall-clock
+# ``t_data_s`` recorded in the result files measures a *cache lookup* whenever
+# the dataset is already on disk, and quoting that as the cost of the exact
+# simulation would be wrong by orders of magnitude (1981 s vs 0.0 s at N=10 in
+# the scaling study).  Callers therefore record ``data_from_cache`` next to it;
+# see ``run_experiments.exp_scaling``.
+CACHE_STATS = {"hit": 0, "miss": 0}
+
+
+def cache_stats(reset=False):
+    """``(hits, misses)`` of :func:`sector_probs` since the last reset."""
+    if reset:
+        CACHE_STATS["hit"] = CACHE_STATS["miss"] = 0
+    return CACHE_STATS["hit"], CACHE_STATS["miss"]
+
 
 def _skey(phis, N, theta, curly, noise, fold):
     """Stable hash of a simulation specification (cache key)."""
@@ -115,7 +130,9 @@ def sector_probs(phis, N, theta, curly, noise, fold=1, workers=1, masks=None,
         if os.path.exists(path):
             with np.load(path) as d:
                 pr = np.array(d["probs"])
+            CACHE_STATS["hit"] += 1
             return pr, vl.probs_to_p_m(pr, masks)
+    CACHE_STATS["miss"] += 1
     args = [(float(p), N, theta, curly, noise, fold) for p in phis]
     if workers > 1 and len(args) > 1:
         with Pool(processes=min(workers, len(args))) as pool:
@@ -538,6 +555,158 @@ def mitigator_linv(K_m, alpha=1e-6):
     T = linv_map_from_kernel(K_m, alpha)
     return Mitigator("linv_known", lambda y: np.asarray(y) @ T,
                      {"alpha": alpha, "n_params": T.size})
+
+
+def calib_train_indices(phis, val_frac=0.25, contiguous=False):
+    """Training/hold-out split of the calibration phases, as :func:`train_map`.
+
+    Exposed so that a non-variational baseline can be fitted on *exactly* the
+    same subset of the calibration phases as the variational maps.  The indices
+    refer to the phase-sorted order that ``train_map`` uses internally, and the
+    branching (including the "too little data to split" fallback and the
+    contiguous hold-out for the finite-difference Fisher score) mirrors it, so
+    a baseline fitted through this helper consumes the same quantum resource
+    and obeys the same hold-out discipline as D-VAQEM.
+
+    Returns ``(idx_train, idx_val)``; ``idx_val`` is ``None`` when there is not
+    enough calibration data to split.
+    """
+    phis = np.asarray(phis, dtype=float)[np.argsort(np.asarray(phis, dtype=float))]
+    B = int(phis.size)
+    n_val = int(round(val_frac * B)) if val_frac > 0 else 0
+    if B - n_val < 5 or n_val < 2:
+        n_val = 0                                   # too little data to split
+    if n_val == 0:
+        return np.arange(B), None
+    if contiguous:
+        return np.arange(B - n_val), np.arange(B - n_val, B)
+    step = max(2, B // n_val)
+    idx_va = np.arange(0, B, step)[:n_val]
+    return np.setdiff1d(np.arange(B), idx_va), idx_va
+
+
+def calib_pairs(data, idx=None, fold=None, val_frac=0.25):
+    """The (target, observed) calibration pairs a mitigation fit is allowed to see.
+
+    Returns ``(y, t)``: the noisy sector distributions and the noiseless targets
+    at the phase-sorted, training-split calibration phases.  Shared by
+    :func:`fit_flip_rate` and :func:`flip_rate_residual` so that a rate estimated
+    from the data and a rate read off the noise model are always scored on
+    exactly the same subset -- otherwise the comparison between the calibrated
+    and the analytic assignment matrix would not be like for like.
+    """
+    phis = np.asarray(data["phis"], dtype=float)
+    order = np.argsort(phis)
+    fold = min(data["pm_noisy"]) if fold is None else int(fold)
+    y = np.asarray(data["pm_noisy"][fold], dtype=float)[order]
+    t = np.asarray(data["pm_clean"], dtype=float)[order]
+    if idx is None:
+        idx, _ = calib_train_indices(phis, val_frac)
+    idx = np.asarray(idx, dtype=int)
+    return y[idx], t[idx]
+
+
+def flip_rate_residual(data, N, q, idx=None, fold=None, val_frac=0.25):
+    """RMS calibration residual of the binomial sector kernel at a *given* rate.
+
+    Used to score a rate that was not estimated from the data -- in particular
+    the analytic ``effective_flip`` rate that the genie baseline inverts -- on
+    the same objective and the same calibration phases as :func:`fit_flip_rate`.
+    A residual larger than the fitted one means the flip-equivalent surrogate is
+    not the best member of its own family for that channel.
+    """
+    y, t = calib_pairs(data, idx, fold, val_frac)
+    r = t @ vl.m_flip_kernel(N, float(q)).T - y
+    per = np.sqrt(np.sum(r ** 2, axis=1))
+    return float(np.sqrt(np.mean(per ** 2)))
+
+
+def fit_flip_rate(data, N, idx=None, fold=None, val_frac=0.25, fmax=0.4995,
+                  n_grid=200, refine=48):
+    """Effective i.i.d. bit-flip rate estimated from calibration data alone.
+
+    Readout-error mitigation assumes the device acts as an independent
+    per-qubit bit-flip channel and corrects the statistics by inverting the
+    corresponding assignment matrix.  This reproduces that assumption *without*
+    the noise model: of the one-parameter family of exact sector kernels
+    :func:`vaqem_lib.m_flip_kernel`, it returns the member that best carries the
+    noiseless calibration targets onto the observed noisy calibration
+    distributions,
+
+    .. math:: \\hat q = \\arg\\min_q \\sum_i \\| p_m(\\phi_i)\\, K(q)^T
+              - y(\\phi_i) \\|_2^2 ,
+
+    which is exactly the information budget the variational maps receive
+    (noisy distributions at known reference phases plus noiseless targets from
+    a classical model of the same circuit) -- no noise model, no test phases.
+
+    For a channel that is *not* flip-equivalent (dephasing, amplitude damping)
+    the family contains no correct member, and the fit returns its least-bad
+    element.  That is deliberate: it is how a practitioner's readout correction
+    actually behaves under model mismatch, and reporting it as "unavailable"
+    (which the genie baseline :func:`mitigator_linv` has to do, since it needs
+    the analytic rate) would hide the failure mode that matters.
+
+    The objective is minimised by a global grid scan followed by ternary
+    refinement inside the winning bracket, so a locally non-convex landscape
+    cannot trap the estimate.
+
+    Returns ``(q_hat, info)`` with ``info`` carrying the achieved residual, the
+    grid resolution, the final bracket and the per-phase residuals.
+    """
+    y, t = calib_pairs(data, idx, fold, val_frac)
+    idx = np.arange(len(y)) if idx is None else np.asarray(idx, dtype=int)
+
+    def resid(q):
+        return t @ vl.m_flip_kernel(N, q).T - y
+
+    def loss(q):
+        return float(np.sum(resid(q) ** 2))
+
+    grid = np.linspace(0.0, fmax, int(n_grid))
+    vals = np.array([loss(q) for q in grid])
+    i = int(np.argmin(vals))
+    lo = float(grid[max(i - 1, 0)])
+    hi = float(grid[min(i + 1, int(n_grid) - 1)])
+    for _ in range(int(refine)):
+        m1 = lo + (hi - lo) / 3.0
+        m2 = hi - (hi - lo) / 3.0
+        if loss(m1) < loss(m2):
+            hi = m2
+        else:
+            lo = m1
+    q_hat = 0.5 * (lo + hi)
+    if loss(q_hat) > vals[i]:                       # never worse than the grid
+        q_hat, lo, hi = float(grid[i]), lo, hi
+    per = np.sqrt(np.sum(resid(q_hat) ** 2, axis=1))
+    info = {"loss": float(loss(q_hat)),
+            "loss_grid_min": float(vals[i]),
+            "rms_resid": float(np.sqrt(np.mean(per ** 2))),
+            "max_resid": float(per.max()),
+            "per_phase_resid": per.tolist(),
+            "n_grid": int(n_grid), "fmax": float(fmax),
+            "bracket": [float(lo), float(hi)],
+            "n_fit_phases": int(idx.size),
+            "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+            "objective": "least squares on the calibration sector distributions"}
+    return float(q_hat), info
+
+
+def mitigator_linv_calib(N, q_hat, alpha=1e-6):
+    """Readout-error mitigation with a *calibrated* assignment matrix.
+
+    Identical inversion machinery to :func:`mitigator_linv`, but the kernel is
+    built from the rate estimated by :func:`fit_flip_rate` instead of the
+    analytic one, so the baseline uses no noise model.  ``n_params_fit`` is the
+    single number the estimator actually learns; ``n_params`` is the size of the
+    resulting linear map, which is what the inversion costs to apply.
+    """
+    mit = mitigator_linv(vl.m_flip_kernel(N, q_hat), alpha)
+    mit.name = "linv_calib"
+    mit.info.update({"q_hat": float(q_hat), "n_params_fit": 1,
+                     "family": "i.i.d. bit-flip (exact binomial sector kernel)",
+                     "assignment_matrix": "calibrated, not analytic"})
+    return mit
 
 
 def richardson_coeffs(lams):

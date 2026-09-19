@@ -96,20 +96,52 @@ def grids(n_cal, n_tst):
     return cal, tst
 
 
-def metrics(pred, phi):
+def metrics(pred, phi, detail=False):
+    """Error metrics of one phase estimate vector against the test grid.
+
+    With ``detail=True`` the per-phase squared errors are also returned as
+    ``err2`` (a plain list, JSON-safe).  Keeping them -- rather than only their
+    mean -- is what lets :mod:`bootstrap_ci` form *paired* bootstrap confidence
+    intervals over the test grid afterwards, without re-running the (expensive)
+    experiment.  ``agg`` turns them into ``err2_phase`` / ``mse_trial``.
+    """
     d = vl.wrapped_err(pred, phi)
-    return {"mse": float(np.mean(d ** 2)),
-            "mse_db": float(10 * np.log10(np.mean(d ** 2) + 1e-30)),
-            "median_swpe_db": float(np.median(vl.swpe_db(pred, phi))),
-            "mae": float(np.mean(np.abs(d))),
-            "max_abs_err": float(np.abs(d).max())}
+    out = {"mse": float(np.mean(d ** 2)),
+           "mse_db": float(10 * np.log10(np.mean(d ** 2) + 1e-30)),
+           "median_swpe_db": float(np.median(vl.swpe_db(pred, phi))),
+           "mae": float(np.mean(np.abs(d))),
+           "max_abs_err": float(np.abs(d).max())}
+    if detail:
+        out["err2"] = [float(x) for x in d ** 2]
+    return out
 
 
 def agg(rows):
-    """Average a list of metric dicts (Monte-Carlo trials)."""
-    out = {k: float(np.mean([r[k] for r in rows])) for k in rows[0]}
+    """Average a list of metric dicts (Monte-Carlo trials).
+
+    Scalar entries are averaged over trials.  If the trials carry the per-phase
+    squared errors of :func:`metrics` (``detail=True``) three extra entries are
+    produced, all JSON-safe lists/floats:
+
+    ``err2_phase``  mean over trials, per test phase   -> (n_tst,)
+    ``mse_trial``   mean over phases, per trial        -> (n_trials,)
+    ``mse_sem``     standard error of ``mse_trial``
+
+    ``err2_phase`` supports a bootstrap over the *test grid* (paired between
+    methods, since all methods share the seed ``seed + S``), ``mse_trial``
+    supports a bootstrap over *Monte-Carlo trials*.
+    """
+    keys = [k for k in rows[0] if k != "err2"]
+    out = {k: float(np.mean([r[k] for r in rows])) for k in keys}
     out["mse_std"] = float(np.std([r["mse"] for r in rows]))
     out["n_trials"] = len(rows)
+    if "err2" in rows[0]:
+        e2 = np.asarray([r["err2"] for r in rows], dtype=float)
+        out["err2_phase"] = [float(x) for x in e2.mean(axis=0)]
+        out["mse_trial"] = [float(x) for x in e2.mean(axis=1)]
+        n = e2.shape[0]
+        out["mse_sem"] = (float(np.std(e2.mean(axis=1), ddof=1) / np.sqrt(n))
+                          if n > 1 else 0.0)
     return out
 
 
@@ -358,13 +390,14 @@ def eval_with_mitigator(pm_noisy, phi, model, mit, shots_list, n_trials, seed):
         return vl.predict_from_pm(vm._renorm(p), dec["params"])
 
     rows = {"inf": metrics(decode(pm_noisy if mit is None else mit(pm_noisy),
-                                  model), phi)}
+                                  model), phi, detail=True)}
     for S in shots_list:
         rng = np.random.RandomState(seed + int(S))
         tr = []
         for _ in range(max(1, n_trials)):
             y = vm.sample_dist(pm_noisy, S, rng)
-            tr.append(metrics(decode(y if mit is None else mit(y), model), phi))
+            tr.append(metrics(decode(y if mit is None else mit(y), model), phi,
+                              detail=True))
         rows[f"S{S}"] = agg(tr)
     return rows
 
@@ -383,14 +416,16 @@ def eval_zne(tst, phi, model, kind, degree, shots_list, n_trials, seed,
     folds, c = zne_coeffs(tst, kind, degree, folds)
     Y0 = np.stack([tst["pm_noisy"][f] for f in folds])
     rows = {"inf": metrics(vl.predict_from_pm(
-        vm._renorm(np.tensordot(c, Y0, axes=(0, 0))), model["params"]), phi)}
+        vm._renorm(np.tensordot(c, Y0, axes=(0, 0))), model["params"]), phi,
+        detail=True)}
     for S in shots_list:
         rng = np.random.RandomState(seed + int(S))
         tr = []
         for _ in range(max(1, n_trials)):
             Y = np.stack([vm.sample_dist(tst["pm_noisy"][f], S, rng) for f in folds])
             Z = np.tensordot(c, Y, axes=(0, 0))
-            tr.append(metrics(vl.predict_from_pm(vm._renorm(Z), model["params"]), phi))
+            tr.append(metrics(vl.predict_from_pm(vm._renorm(Z), model["params"]),
+                              phi, detail=True))
         rows[f"S{S}"] = agg(tr)
     return rows, c.tolist(), folds
 
@@ -466,11 +501,11 @@ def oracle_predict(g, pm_grid, y, how="ce", refine=True):
 
 
 def eval_oracle(g, pm_grid, y1, phi, how, shots_list, n_trials, seed):
-    rows = {"inf": metrics(oracle_predict(g, pm_grid, y1, how), phi)}
+    rows = {"inf": metrics(oracle_predict(g, pm_grid, y1, how), phi, detail=True)}
     for S in shots_list:
         rng = np.random.RandomState(seed + int(S))
         tr = [metrics(oracle_predict(g, pm_grid, vm.sample_dist(y1, S, rng), how),
-                      phi) for _ in range(max(1, n_trials))]
+                      phi, detail=True) for _ in range(max(1, n_trials))]
         rows[f"S{S}"] = agg(tr)
     return rows
 
@@ -501,6 +536,46 @@ def all_methods(cal, tst, model, shots_list, n_trials=25, seed=0, iters=2000,
         meta["linv_known"] = {"f_eff": None,
                               "note": "noise not flip-equivalent: exact sector "
                                       "kernel unavailable"}
+
+    # Readout-error mitigation without the genie: the *same* binomial sector
+    # kernel as above, but the effective flip rate is estimated from the
+    # calibration data alone -- noisy sector distributions at known reference
+    # phases plus noiseless targets from a classical model of the same circuit,
+    # i.e. exactly the information budget the variational maps get, and fitted
+    # on exactly the same subset of the calibration phases (the held-out phases
+    # stay unseen).  Two consequences make this the baseline a practitioner can
+    # actually run: it is defined for *every* channel, including the ones that
+    # are not flip-equivalent, where the family simply contains no correct
+    # member; and it can beat the analytic rate, because ``effective_flip`` is
+    # a surrogate for the exact Kraus channel rather than that channel itself
+    # (measured calibration residual: bit-flip p=0.02, 8.2e-3 calibrated vs
+    # 2.7e-2 analytic).
+    idx_tr, _ = vm.calib_train_indices(cal["phis"])
+    q_hat, q_info = vm.fit_flip_rate(cal, N, idx=idx_tr)
+    # Score the *analytic* rate on the same objective and the same calibration
+    # phases.  When this exceeds the fitted residual, the flip-equivalent
+    # surrogate is not even the best member of its own family, i.e. the
+    # calibrated baseline is strictly stronger than the genie one -- which is
+    # what makes the comparison below conservative rather than a straw man.
+    resid_genie = (None if f_eff is None else
+                   vm.flip_rate_residual(cal, N, f_eff, idx=idx_tr))
+    res["linv_calib"] = eval_with_mitigator(
+        y1, phi, model, vm.mitigator_linv_calib(N, q_hat), shots_list,
+        n_trials, seed)
+    meta["linv_calib"] = {
+        "q_hat": float(q_hat), "f_eff": f_eff,
+        "abs_err_vs_f_eff": (None if f_eff is None else float(abs(q_hat - f_eff))),
+        "n_params_fit": 1, "n_fit_phases": int(q_info["n_fit_phases"]),
+        "calib_rms_resid": float(q_info["rms_resid"]),
+        "calib_rms_resid_at_f_eff": resid_genie,
+        "calib_beats_analytic": (None if resid_genie is None
+                                 else bool(q_info["rms_resid"] < resid_genie)),
+        "calib_max_resid": float(q_info["max_resid"]),
+        "calib_loss": float(q_info["loss"]),
+        "bracket": [float(b) for b in q_info["bracket"]],
+        "family": q_info["family"],
+        "note": "assignment matrix calibrated from the calibration phases; no "
+                "noise model, no test phases"}
 
     # oracle: exact noise model + fine phase grid (the 'genie' estimator)
     t_or = time.time()
@@ -739,7 +814,8 @@ def exp_sufficiency(Ns=(4, 6, 8), n_phi=13, workers=12, rng_seed=0,
 # ----------------------------------------------------------------------
 # E2  headline sweep: methods x noise type x strength
 # ----------------------------------------------------------------------
-METHOD_ORDER = ["noiseless", "none", "linv_known", "oracle_ml", "oracle_l2",
+METHOD_ORDER = ["noiseless", "none", "linv_known", "linv_calib", "oracle_ml",
+                "oracle_l2",
                 "zne_rich", "zne_poly1", "zne_poly2", "dvaqem_lin_ce",
                 "dvaqem_lin_l2", "dvaqem_lin_mse", "dvaqem_mlp_ce",
                 "dvaqem_mlp_l2", "dvaqem_mlp_fisher", "dvaqem_mlp_mse",
@@ -806,8 +882,8 @@ def exp_sweep(N=8, n_cal=25, n_tst=41, shots_list=(256, 1024, 4096),
         metas[label] = meta
         print(f"    {time.time() - t0:6.1f}s   " + "  ".join(
             f"{k}={res[k]['inf']['mse']:.2e}" for k in
-            ("none", "linv_known", "oracle_ml", meta["best_dvaqem"],
-             "retrain_dec")
+            ("none", "linv_known", "linv_calib", "oracle_ml",
+             meta["best_dvaqem"], "retrain_dec")
             if k in res), flush=True)
         save_json(f"{tag}_sweep.json", rows)          # incremental: resumable
     save_json(f"{tag}_sweep_meta.json", metas)
@@ -1056,10 +1132,18 @@ def exp_scaling(Ns=None, n_cal=25, n_tst=25, folds=(1, 3, 5),
         print(f"  [N={N}] noise={nz}  sector dim {N + 1} vs full dim {4 ** N}",
               flush=True)
         t0 = time.time()
+        vm.cache_stats(reset=True)
         cal, tst = build(N, model, nz, cal_phis, tst_phis,
                          folds=tuple(sorted(set(folds) | set(folds_poly or ()))),
                          workers=workers)
         t_data = time.time() - t0
+        _hits, _misses = vm.cache_stats()
+        # ``t_data_s`` is a wall-clock number: when the on-disk cache served every
+        # request it measures a lookup, not the exact density-matrix simulation,
+        # and quoting it as the simulation cost would be wrong by orders of
+        # magnitude.  Record which of the two it is, so the provenance of every
+        # cost figure in the result files is explicit.
+        from_cache = bool(_misses == 0 and _hits > 0)
         res, meta = all_methods(cal, tst, model, shots_list, n_trials=n_trials,
                                 seed=seed, iters=iters, hidden=hidden,
                                 retrain_iters=retrain_iters,
@@ -1071,6 +1155,9 @@ def exp_scaling(Ns=None, n_cal=25, n_tst=25, folds=(1, 3, 5),
                 rows.append({"N": N, "setting": f"N{N}", "noise": nz,
                              "method": method, "shots": k, "n_cal": n_cal,
                              "n_tst": n_tst, "t_data_s": t_data,
+                             "data_from_cache": from_cache,
+                             "cache_hits": _hits,
+                             "cache_simulated": _misses,
                              "t_fit_s": meta["_fit_time_s"],
                              "t_retrain_s": meta["retrain_dec"]["time_s"],
                              "t_oracle_s": meta["oracle"]["sim_time_s"],
@@ -1079,7 +1166,9 @@ def exp_scaling(Ns=None, n_cal=25, n_tst=25, folds=(1, 3, 5),
                              "fi_clean": fi["clean"], "fi_noisy": fi["noisy"],
                              "fi_mitigated": fi["mitigated"],
                              "best_dvaqem": meta["best_dvaqem"], **m})
-        print(f"    data {t_data:6.1f}s  map fit {meta['_fit_time_s']:5.1f}s  "
+        print(f"    data {t_data:6.1f}s"
+              f"{' (cache)' if from_cache else f' ({_misses} simulated)'}"
+              f"  map fit {meta['_fit_time_s']:5.1f}s  "
               f"retrain {meta['retrain_dec']['time_s']:5.1f}s  "
               f"oracle grid ({meta['oracle']['n_grid']} phases) "
               f"{meta['oracle']['sim_time_s']:6.1f}s  "
