@@ -1245,13 +1245,179 @@ def exp_calib(N=8, cal_sizes=(5, 9, 17, 25, 41), cal_shots=(None, 512, 2048, 819
 
 
 # ----------------------------------------------------------------------
+# E6  readout PEC: sampling overhead, variance cost, model mismatch
+# ----------------------------------------------------------------------
+def eval_shot_aware(pm_noisy, phi, model, make_mit, shots_list, n_trials, seed):
+    """``eval_with_mitigator`` with the mitigator rebuilt for each shot budget.
+
+    PEC needs this because its estimator *depends on the shot count*: the
+    quasi-probability draw reweights by gamma per shot, so a sampler built for
+    S=256 is not the right object at S=4096.  ``make_mit(None)`` returns the
+    infinite-shot (expectation) form and ``make_mit(S)`` the sampled one.  All
+    metric conventions are inherited from ``eval_with_mitigator``, so the rows
+    are directly comparable with the archived E2 sweep.
+    """
+    out = {"inf": eval_with_mitigator(pm_noisy, phi, model, make_mit(None),
+                                      [], n_trials, seed)["inf"]}
+    for S in shots_list:
+        out[f"S{S}"] = eval_with_mitigator(pm_noisy, phi, model, make_mit(S),
+                                           [S], n_trials, seed)[f"S{S}"]
+    return out
+
+
+def exp_pec(N=8, n_cal=25, n_tst=41, shots_list=(256, 1024, 4096),
+            n_trials=25, workers=6, seed=0, quick=False, noise=None,
+            mismatch=(-0.02, -0.01, -0.005, 0.0, 0.005, 0.01, 0.02),
+            stress=(("readout_0.10", {"kind": "none", "p": 0.0,
+                                      "readout_p": 0.10}),
+                    ("readout_0.15", {"kind": "none", "p": 0.0,
+                                      "readout_p": 0.15}),
+                    ("readout_0.20", {"kind": "none", "p": 0.0,
+                                      "readout_p": 0.20}),
+                    ("depol_0.01_readout_0.03",
+                     {"kind": "depolarizing", "p": 0.01, "readout_p": 0.03})),
+            tag="e6"):
+    """Readout PEC as a baseline: what model-based mitigation actually costs.
+
+    PEC inverts the same binomial sector channel as ``linv_calib`` and, as
+    ``test_pec.py`` proves, its expected transition matrix equals ``K_m^-T`` to
+    1.6e-15 -- so at infinite shots the two are the *same estimator* and any
+    difference in the sweep would be numerical noise, not science.  What PEC
+    adds is the price of implementing that inverse by sampling rather than by
+    matrix algebra, and this experiment measures exactly that price:
+
+    axis ``overhead``
+        gamma = (1-2q)^-N and gamma^2 for the calibrated and the genie rate,
+        i.e. the sampling overhead quoted for readout-error mitigation.  Exact
+        and cheap, so it is recorded per setting rather than inferred.
+    axis ``budget``
+        faithful shot-by-shot PEC against the deterministic inverse at each
+        shot budget.  The gap is the variance penalty of the quasi-probability
+        draw, and it must widen as gamma grows.
+    axis ``mismatch``
+        the rate the practitioner assumes drifts away from the device.  A
+        model-based inverse converges to ``p K(q_true)^T M(q_assumed)``, so the
+        error saturates at a bias floor that *no amount of data removes*; the
+        unmitigated level is recorded alongside as the reference line, and the
+        D-VAQEM comparator is joined downstream from the archived E2 sweep
+        (same paper parameters, same seed), because a map fitted on calibration
+        data has no assumed rate to be wrong about.
+
+    Only the PEC rows are computed here: ``none`` / ``linv_*`` / ``dvaqem_*`` at
+    these identical settings already exist in ``final_sweep.json``, and
+    recomputing them would cost a full E2 run to reproduce numbers that are
+    archived and byte-stable.
+    """
+    model = load_model(N)
+    cal_phis, tst_phis = grids(n_cal, n_tst)
+    settings = noise_grid(quick) if noise is None else noise
+    # The 16 paper settings are all single-channel and sit at effective flip
+    # rates <= 0.05, where gamma is still modest.  These extra settings probe
+    # the regime where the quasi-probability overhead actually bites, which is
+    # the property that separates PEC from a deterministic inverse; they have
+    # no E2 counterpart, hence the self-contained comparators above.
+    if noise is None and stress and not quick:
+        settings = list(settings) + list(stress)
+    if quick:
+        mismatch = (-0.01, 0.0, 0.01)
+    rows = []
+    for label, nz in settings:
+        print(f"  [{label}] N={N}  noise={nz}", flush=True)
+        t0 = time.time()
+        cal, tst = build(N, model, nz, cal_phis, tst_phis, workers=workers)
+        phi, y1 = tst["phis"], tst["pm_noisy"][1]
+        idx_tr, _ = vm.calib_train_indices(cal["phis"])
+        q_hat, q_info = vm.fit_flip_rate(cal, N, idx=idx_tr)
+        f_eff = vl.effective_flip(N, nz, fold=1)
+        g_cal = vm.pec_gamma(N, q_hat)
+        g_knw = None if not f_eff or f_eff >= 0.5 else vm.pec_gamma(N, f_eff)
+        common = {"setting": label, "N": N, "noise": nz, "q_hat": float(q_hat),
+                  "f_eff": f_eff, "gamma_calib": g_cal, "gamma_known": g_knw,
+                  "calib_rms_resid": float(q_info["rms_resid"])}
+
+        # --- axis: overhead -------------------------------------------------
+        rows.append({"axis": "overhead", "method": "pec_calib", "shots": "inf",
+                     "gamma": g_cal, "gamma_sq": g_cal ** 2,
+                     "mismatch_dq": None, **common})
+        if g_knw is not None:
+            rows.append({"axis": "overhead", "method": "pec_known",
+                         "shots": "inf", "gamma": g_knw, "gamma_sq": g_knw ** 2,
+                         "mismatch_dq": None, **common})
+
+        # --- axis: budget (faithful shot-by-shot sampling) ------------------
+        # ``none`` and ``linv_calib`` are recomputed here rather than joined
+        # from the archived E2 sweep, so the PEC-vs-inverse variance comparison
+        # is self-contained and also covers the stress settings below, which
+        # have no E2 counterpart.  Both are linear maps, so unlike PEC they do
+        # not depend on the shot budget and need no shot-aware rebuild.
+        for name, mit in (("none", None),
+                          ("linv_calib", vm.mitigator_linv_calib(N, q_hat))):
+            r = eval_with_mitigator(y1, phi, model, mit, shots_list,
+                                    n_trials, seed)
+            for k, m in r.items():
+                rows.append({"axis": "budget", "method": name, "shots": k,
+                             "gamma": (None if mit is None else g_cal),
+                             "gamma_sq": (None if mit is None else g_cal ** 2),
+                             "mismatch_dq": None, **common, **m})
+        variants = [("pec_calib", q_hat, "pec_calib")]
+        if f_eff and 0 < f_eff < 0.5:
+            variants.append(("pec_known", float(f_eff), "pec_known"))
+        for name, q_use, factory in variants:
+            mk = (vm.mitigator_pec_known if factory == "pec_known"
+                  else vm.mitigator_pec)
+            r = eval_shot_aware(
+                y1, phi, model,
+                lambda S, q=q_use, f=mk: f(N, q, shots=S, seed=seed + 17),
+                shots_list, n_trials, seed)
+            for k, m in r.items():
+                rows.append({"axis": "budget", "method": name, "shots": k,
+                             "gamma": vm.pec_gamma(N, q_use),
+                             "gamma_sq": vm.pec_gamma(N, q_use) ** 2,
+                             "mismatch_dq": None, **common, **m})
+
+
+        # --- axis: model mismatch (infinite shots: the bias floor) ----------
+        # D-VAQEM has no assumed rate, so the comparator is joined downstream
+        # from the archived E2 sweep; ``none`` is the reference line recorded
+        # here, and it is the level a mismatched inverse eventually falls back
+        # to (and can go below, since over-correction is worse than none).
+        for dq in mismatch:
+            q_as = float(min(max(q_hat + dq, 0.0), 0.4995))
+            floor = vm.pec_mismatch_bias(N, q_hat, q_as)
+            for nm, mit in (("pec_calib", vm.mitigator_pec(N, q_as, shots=None)),
+                            ("linv_calib", vm.mitigator_linv(
+                                vl.m_flip_kernel(N, q_as)))):
+                m = eval_with_mitigator(y1, phi, model, mit, [], 1, seed)["inf"]
+                rows.append({"axis": "mismatch", "method": nm, "shots": "inf",
+                             "gamma": vm.pec_gamma(N, q_as),
+                             "gamma_sq": vm.pec_gamma(N, q_as) ** 2,
+                             "mismatch_dq": float(dq), "q_assumed": q_as,
+                             "analytic_bias_floor": floor, **common, **m})
+        m_none = eval_with_mitigator(y1, phi, model, None, [], 1, seed)["inf"]
+        rows.append({"axis": "mismatch", "method": "none", "shots": "inf",
+                     "gamma": None, "gamma_sq": None, "mismatch_dq": 0.0,
+                     "q_assumed": None, "analytic_bias_floor": None,
+                     **common, **m_none})
+
+        save_json(f"{tag}_pec.json", rows)             # incremental: resumable
+        b256 = next((r["mse"] for r in reversed(rows)
+                     if r["axis"] == "budget" and r["shots"] == "S256"
+                     and r["method"] == "pec_calib"), None)
+        print(f"    {time.time() - t0:6.1f}s  q_hat={q_hat:.5f} "
+              f"f_eff={f_eff}  gamma={g_cal:.4f} (gamma^2={g_cal ** 2:.4f})  "
+              f"pec S256 mse={'n/a' if b256 is None else f'{b256:.2e}'}",
+              flush=True)
+    return rows
+
+
+# ----------------------------------------------------------------------
 # driver
 # ----------------------------------------------------------------------
 def main(argv=None):
     ap = argparse.ArgumentParser(description="D-VAQEM experiment suite")
     ap.add_argument("exp", nargs="?", default="all",
                     choices=("sufficiency", "sweep", "shots", "scaling",
-                             "calib", "all"))
+                             "calib", "pec", "all"))
     ap.add_argument("--quick", action="store_true",
                     help="smaller grids, fewer noise settings and trials")
     ap.add_argument("--workers", type=int,
@@ -1351,6 +1517,12 @@ def main(argv=None):
             iters=a.iters, quick=a.quick, seed=a.seed,
             retrain_iters=a.retrain_iters,
             warm_start=not a.no_warm_start))
+
+    if a.exp in ("pec", "all"):
+        nz = parse_noise_spec(json.loads(a.noise)) if a.noise else None
+        run("E6 pec", lambda: exp_pec(
+            N=a.N, n_cal=a.n_cal, n_tst=a.n_tst, n_trials=a.n_trials,
+            workers=a.workers, seed=a.seed, quick=a.quick, noise=nz))
 
     cfg["timings_s"] = {k: round(v, 1) for k, v in timings.items()}
     cfg["total_s"] = round(time.time() - t_all, 1)

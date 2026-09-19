@@ -709,6 +709,177 @@ def mitigator_linv_calib(N, q_hat, alpha=1e-6):
     return mit
 
 
+# ----------------------------------------------------------------------
+# Probabilistic error cancellation (PEC) on the readout channel
+# ----------------------------------------------------------------------
+def pec_gamma(N, q):
+    """Sampling overhead of readout PEC on ``N`` qubits at flip rate ``q``.
+
+    The exact inverse of the single-qubit flip channel is the quasi-probability
+    combination ``c0*I + c1*X`` with ``c0 = (1-q)/(1-2q)`` and
+    ``c1 = -q/(1-2q)``, so the per-qubit overhead is ``|c0|+|c1| = 1/(1-2q)``
+    and, the qubits being independent, the total is ``gamma = (1-2q)^-N``.  A
+    PEC estimate has the *same expectation* as the deterministic inverse but a
+    variance inflated by ``gamma^2`` -- that is the sampling overhead quoted for
+    readout-error mitigation.  It diverges at ``q = 1/2``, where the channel
+    carries no information and is not invertible at all.
+    """
+    N, q = int(N), float(q)
+    if not 0.0 <= q < 0.5:
+        raise ValueError("PEC needs an invertible flip channel: 0 <= q < 0.5")
+    return (1.0 - 2.0 * q) ** (-N)
+
+
+def pec_sector_matrix(N, q):
+    """Expected sector transition matrix of readout PEC.
+
+    PEC corrects *observed bitstrings*: given an observed sector holding ``w0``
+    zeros and ``w1`` ones, every observed bit is flipped with the sampling
+    probability ``|c1| / (|c0|+|c1|) = q`` and the outcome is reweighted by
+    ``gamma * (-1)^(number of corrections)``.  Flipping an observed ``1``
+    raises ``n0`` by one and flipping an observed ``0`` lowers it, so the net
+    correction depends only on the observed sector: PEC is well defined on the
+    ``(N+1)``-dimensional sector distribution and needs no bitstring
+    bookkeeping downstream.
+
+    Returns ``(M, gamma)`` with ``M[a_obs, a_out]`` the signed, ``gamma``-
+    weighted probability that a shot observed in sector ``a_obs`` contributes to
+    ``a_out``.  Two identities make this a faithful PEC implementation rather
+    than an ad-hoc reweighting, and both are asserted in ``test_pec.py``:
+
+    * ``M`` equals ``linv_map_from_kernel(m_flip_kernel(N, q))``, i.e. PEC and
+      deterministic matrix inversion are the same estimator in expectation and
+      differ only in variance;
+    * ``sum_a_out |M[a_obs, a_out]| = gamma`` for every observed sector, i.e.
+      the sampling overhead is state-independent.
+
+    Because the sector index is ``a = n0`` (see ``vaqem_lib.m_flip_kernel``),
+    correcting ``j`` of the ``w1 = N - a`` observed ones and ``i`` of the
+    ``w0 = a`` observed zeros lands in sector ``a + j - i``, which always stays
+    inside ``[0, N]``.
+    """
+    from math import comb
+    N, q = int(N), float(q)
+    gamma = pec_gamma(N, q)
+    M = np.zeros((N + 1, N + 1))
+    for a in range(N + 1):
+        w0, w1 = a, N - a                    # observed zeros / ones
+        for j in range(w1 + 1):              # observed ones corrected: 1 -> 0
+            pj = comb(w1, j) * q ** j * (1.0 - q) ** (w1 - j)
+            if pj == 0.0:
+                continue
+            for i in range(w0 + 1):          # observed zeros corrected: 0 -> 1
+                pi = comb(w0, i) * q ** i * (1.0 - q) ** (w0 - i)
+                if pi == 0.0:
+                    continue
+                M[a, a + j - i] += gamma * (-1.0) ** (j + i) * pj * pi
+    return M, gamma
+
+
+def pec_sample(y, N, q, shots, rng):
+    """One faithful PEC estimate from an empirical sector distribution.
+
+    ``y`` holds empirical frequencies from ``shots`` shots, so ``y * shots`` are
+    integer counts.  Each count in observed sector ``a`` draws its corrections
+    ``j ~ Binom(w1, q)`` and ``i ~ Binom(w0, q)`` independently and contributes
+    ``gamma * (-1)^(j+i) / shots`` to sector ``a + j - i``.  This reproduces
+    shot-by-shot PEC exactly -- the quasi-probability randomness is *additional*
+    to the multinomial shot noise already present in ``y`` -- and is unbiased:
+    ``E[pec_sample] = y @ M`` with ``M`` from :func:`pec_sector_matrix`.
+
+    The reweighting by ``gamma`` is what makes the estimate unbiased and also
+    what inflates its variance, so the returned distribution is signed and
+    generally not normalised; callers renormalise before decoding, exactly as
+    for the linear inverse.
+    """
+    y = np.asarray(y, dtype=float)
+    two_d = (y.ndim == 2)
+    Y = y if two_d else y[None, :]
+    N, q, shots = int(N), float(q), int(shots)
+    gamma = pec_gamma(N, q)
+    out = np.zeros_like(Y)
+    for b in range(Y.shape[0]):
+        counts = np.rint(Y[b] * shots).astype(int)
+        for a in range(N + 1):
+            n = int(counts[a])
+            if n <= 0:
+                continue
+            w0, w1 = a, N - a
+            j = rng.binomial(w1, q, size=n)
+            i = rng.binomial(w0, q, size=n)
+            sign = np.where((j + i) % 2 == 0, gamma, -gamma)
+            np.add.at(out[b], a + j - i, sign)
+    out /= shots
+    return out if two_d else out[0]
+
+
+def mitigator_pec(N, q_hat, shots=None, seed=0, expect=False):
+    """Readout PEC as a :class:`Mitigator`, with a calibrated or genie rate.
+
+    Two regimes, selected by ``shots``:
+
+    ``shots=None`` (or ``expect=True``)
+        apply the *expectation* ``y @ M``.  This is the infinite-shot limit of
+        PEC and is mathematically identical to the deterministic inverse
+        :func:`mitigator_linv` -- the point of the baseline is precisely that
+        PEC buys no extra accuracy in expectation, only a sampling cost.
+    ``shots=S``
+        draw the quasi-probability corrections shot by shot through
+        :func:`pec_sample`, from a dedicated RNG that advances across calls so
+        that repeated trials get independent PEC randomness.
+
+    ``n_params_fit`` is 1, the flip rate, so the calibration budget matches
+    ``linv_calib`` and D-VAQEM exactly; ``gamma`` is recorded so the sampling
+    overhead can be quoted rather than inferred.
+    """
+    N, q_hat = int(N), float(q_hat)
+    M, gamma = pec_sector_matrix(N, q_hat)
+    rng = np.random.RandomState(seed)
+    sample = (shots is not None) and not expect
+
+    def fn(y):
+        if sample:
+            return pec_sample(y, N, q_hat, shots, rng)
+        return np.asarray(y, dtype=float) @ M
+
+    return Mitigator("pec_calib", fn,
+                     {"q_hat": q_hat, "gamma": gamma,
+                      "sampling_overhead_gamma_sq": gamma ** 2,
+                      "n_params_fit": 1, "shots": shots,
+                      "sampled": bool(sample),
+                      "assignment_matrix": "calibrated, not analytic",
+                      "family": "i.i.d. bit-flip (exact quasi-probability inverse)"})
+
+
+def mitigator_pec_known(N, f_eff, shots=None, seed=0, expect=False):
+    """:func:`mitigator_pec` at the genie analytic rate, mirroring ``linv_known``."""
+    mit = mitigator_pec(N, f_eff, shots=shots, seed=seed, expect=expect)
+    mit.name = "pec_known"
+    mit.info["assignment_matrix"] = "analytic effective_flip rate (genie)"
+    return mit
+
+
+def pec_mismatch_bias(N, q_true, q_assumed):
+    """Residual sector error of PEC built on a *wrong* flip rate.
+
+    Model-based mitigation cannot average its model error away: as the shot
+    count grows the estimate converges to ``p @ K(q_true)^T @ M(q_assumed)``,
+    not to ``p``, so ``q_assumed != q_true`` leaves a bias floor that no amount
+    of data removes.  This is the property that separates PEC from a map learnt
+    from calibration data, which sees the device that is actually there.
+
+    Returns the worst-case RMS sector distance over pure sector inputs, in the
+    same units as :func:`flip_rate_residual`, so that a mismatched PEC and a
+    mismatched linear inverse can be compared directly.
+    """
+    N = int(N)
+    Kt = vl.m_flip_kernel(N, float(q_true))
+    Ma, _ = pec_sector_matrix(N, float(q_assumed))
+    p = np.eye(N + 1)                       # each sector as a pure input state
+    err = (p @ Kt.T) @ Ma - p
+    return float(np.sqrt(np.max(np.sum(err ** 2, axis=1))))
+
+
 def richardson_coeffs(lams):
     """Exact-to-all-orders Richardson coefficients for extrapolation to lam=0."""
     lams = np.asarray(lams, dtype=float)
