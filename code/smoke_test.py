@@ -10,7 +10,9 @@ depolarising noise:
   4. every mitigation method (none, known-kernel linear inversion, ZNE,
      D-VAQEM linear/MLP with the ce, l2, fisher and shot-aware mse objectives,
      and the decoder-retraining baseline) on held-out phases;
-  5. delta-method finite-shot variance vs Monte Carlo;
+  5. finite-shot error vs Monte Carlo, checked two ways: the delta-method
+     variance in isolation, and the whole sample-then-mitigate pipeline through
+     the chain rule that the shot-aware objective and E3 use;
   6. Fisher information / Cramer-Rao recovery.
 
 Usage:  python smoke_test.py [--quick]
@@ -51,6 +53,8 @@ def main():
     ap.add_argument("--shots", type=int, default=1024)
     ap.add_argument("--iters", type=int, default=300)
     ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--mc-trials", type=int, default=40,
+                    help="Monte-Carlo trials behind each analytic check in [4]")
     a = ap.parse_args()
     n_cal, n_tst = (7, 11) if a.quick else (13, 21)
     ok = True
@@ -171,24 +175,35 @@ def _part2(a, dec, N, theta, curly, noise, cal, tst, cal_phis, tst_phis, ok):
              + (f" init {info['init']} holdout {info['holdout_mse']:.2e}]"
                 if loss == "mse" else "]"))
         ok &= np.isfinite(info["final_loss"])
-        # Every fitted map is affine in the sector probabilities, so it preserves
-        # the normalisation exactly; that is checked strictly for all objectives.
-        # Non-negativity, however, is a property of the *objective*: ce, fisher
-        # and the shot-aware mse are only defined on (or weighted by) the simplex
-        # and stay inside it, whereas the plain l2 fit is an unconstrained affine
-        # map and can leave it by a small amount (measured: total negative mass
-        # 7e-2 ... 2e-1 at N=8, p=0.02).  That is legitimate quasi-probability
-        # behaviour -- the pipeline clips at zero and renormalises with
-        # vm._renorm before every decode -- so for l2 we bound the total
-        # negative mass instead of demanding exact positivity, and report it.
+        # Normalisation is exact for both families and is checked strictly.
+        # Non-negativity is a property of the *family*, not of the objective:
+        #   mlp    -- MlpMap.apply ends in a softmax, so p~ >= 0 holds by
+        #             construction under every objective (measured exactly 0.0 at
+        #             both 300 and 2000 iters); checked to floating point.
+        #   linear -- p~ = y @ T with the rows of T renormalised, so the sum is
+        #             exact but positivity is not.  Only 'ce' carries a
+        #             negativity term and it is the *soft* penalty
+        #             lam*mean(max(-p~,0)^2), so a sharper fit may settle slightly
+        #             outside the simplex (measured 0.0 at 300 iters, 2.6e-03 at
+        #             2000).  The unpenalised objectives leave it by much more
+        #             (measured l2: 1.2e-01 ... 1.6e-01 at N=8, p=0.02).
+        # Either way this is legitimate quasi-probability behaviour -- the
+        # pipeline clips at zero and renormalises with vm._renorm before every
+        # decode -- so the mass is bounded rather than demanded to vanish, and
+        # whatever is left is reported.
         neg_mass = float(np.clip(-fam, 0.0, None).sum(axis=1).max())
-        simplex_tol = 0.25 if loss == "l2" else 1e-12
+        if kind == "mlp":
+            simplex_tol = 1e-12       # softmax output: non-negative by construction
+        elif loss == "ce":
+            simplex_tol = 2e-2        # soft penalty: ~8x margin over the 2.6e-03 seen
+        else:
+            simplex_tol = 0.25        # l2/mse/fisher: positivity is not penalised
         ok &= bool(np.allclose(fam.sum(axis=1), 1.0, atol=1e-8))
         ok &= bool(neg_mass <= simplex_tol)
         if neg_mass > 1e-12:
             print(f"      note: dvaqem_{tag} leaves the simplex by "
-                  f"{neg_mass:.2e} (total negative mass, clipped by _renorm)",
-                  flush=True)
+                  f"{neg_mass:.2e} (total negative mass, tol {simplex_tol:.0e}, "
+                  f"clipped by _renorm)", flush=True)
 
     t1 = time.time()
     dec_rt, info_rt = vm.retrain_decoder(cal, dec, cal_phis, iters=2 * a.iters,
@@ -196,26 +211,65 @@ def _part2(a, dec, N, theta, curly, noise, cal, tst, cal_phis, tst_phis, ok):
     show("retrain_decoder", vl.predict_from_pm(y_tst, dec_rt["params"]),
          f"[{time.time() - t1:.1f}s, {info_rt['n_params']} params]")
 
-    # ---------------- 4. finite shots: delta method vs Monte Carlo ----------
-    print(f"[4] finite-shot check at S={a.shots}, 40 Monte-Carlo trials", flush=True)
+    # ---------------- 4. finite shots: analytic vs Monte Carlo --------------
+    # Two identities are checked, because they fail independently.
+    #
+    # (a) vm.delta_var(q, g, S) is the leading-order variance of phi_hat(q_hat)
+    #     for q_hat ~ Multinomial(q, S)/S.  Sampling directly from the mitigated
+    #     distribution q~ isolates exactly that claim, and it has to hold for
+    #     every family, including the non-linear MLP map.
+    #
+    # (b) vm.evaluate does *not* sample q~: it samples the noisy y and only then
+    #     applies the map, phi_hat = decoder(M(y_hat)), so the shot noise is
+    #     pushed through M as well.  The matching analytic variance is the chain
+    #     rule c = (d phi_hat/d p~)(d p~/d y), i.e. run_experiments._analytic_map
+    #     -- the same expression the shot-aware 'mse' objective minimises and the
+    #     one E3 archives.  Reusing (a)'s expression here silently drops the map
+    #     Jacobian and mistakes M(y) for the sampling distribution; the two agree
+    #     only when M = I, which is why the unmitigated row matches while a
+    #     non-linear map is off by exactly its noise amplification (measured 7.5x
+    #     for the MLP map at N=8, p=0.02, S=1024).
+    #
+    # Tolerance: a two-sided factor 2.  Over 12 seeds x 40 trials the measured
+    # MC/analytic ratio spans 0.954-1.094 for (a) and 0.905-1.117 for (b), so the
+    # bound keeps ~1.8x of Monte-Carlo headroom while still rejecting any
+    # factor-2 structural error -- in particular the 7.5x one above, which a
+    # one-sided bound at 4x only caught for some tags.
+    print(f"[4] finite-shot check at S={a.shots}, {a.mc_trials} Monte-Carlo trials",
+          flush=True)
     for tag in ("none", "lin_mse", "mlp_mse"):
         if tag == "none":
-            q_ex = y_tst
-            mit = None
+            q_ex, mit, mp, psi = y_tst, None, None, None
         else:
             mp, psi, _ = trained[tag]
             q_ex = vm.mitigated_family(mp, psi, y_tst)
             mit = vm.Mitigator(tag, lambda y, mp=mp, psi=psi: vm.mitigated_family(mp, psi, y))
-        pred = vl.predict_from_pm(vm._renorm(q_ex), dec["params"])
-        _, g = vm.decoded_grad(vm._renorm(q_ex), dec)
-        am = vm.analytic_mse(pred, tst_phis, vm._renorm(q_ex), g, a.shots)
+        qr = vm._renorm(q_ex)
+        # (a) delta_var in isolation: sample the mitigated distribution itself
+        _, g = vm.decoded_grad(qr, dec)
+        am_iso = vm.analytic_mse(vl.predict_from_pm(qr, dec["params"]), tst_phis,
+                                 qr, g, a.shots)
+        mc_iso = vm.evaluate(qr, tst_phis, dec, mitigator=None, shots=a.shots,
+                             n_trials=a.mc_trials, seed=1)
+        # (b) whole pipeline: chain rule through the frozen map (the E3 path)
+        am_ch = (rx._analytic_none(y_tst, tst_phis, dec["params"], a.shots)
+                 if mp is None else
+                 rx._analytic_map(mp, psi, y_tst, tst_phis, dec["params"], a.shots))
         mc = vm.evaluate(y_tst, tst_phis, dec, mitigator=mit, shots=a.shots,
-                         n_trials=40, seed=1)
-        print(f"    {tag:<9s} MC mse {mc['mean_swpe']:.4e}   analytic {am['pred_mse']:.4e}"
-              f"  = bias^2 {am['bias2']:.3e} + var {am['var_delta']:.3e}   ratio "
-              f"{mc['mean_swpe'] / max(am['pred_mse'], 1e-30):.2f}", flush=True)
-        ok &= mc["mean_swpe"] < 4.0 * max(am["pred_mse"], 1e-12) + 1e-8
+                         n_trials=a.mc_trials, seed=1)
+        r_iso = mc_iso["mean_swpe"] / max(am_iso["pred_mse"], 1e-30)
+        r_ch = mc["mean_swpe"] / max(am_ch["analytic_mse"], 1e-30)
+        print(f"    {tag:<9s} MC mse {mc['mean_swpe']:.4e}   "
+              f"analytic {am_ch['analytic_mse']:.4e}"
+              f"  = bias^2 {am_ch['bias2']:.3e} + var {am_ch['var_over_S']:.3e}   "
+              f"ratio {r_ch:.3f}   [delta_var alone {am_iso['pred_mse']:.4e}, "
+              f"ratio {r_iso:.3f}]", flush=True)
+        ok &= 0.5 <= r_ch <= 2.0
+        ok &= 0.5 <= r_iso <= 2.0
         base[f"finite_{tag}"] = mc["mean_swpe"]
+        base[f"finite_{tag}_analytic"] = am_ch["analytic_mse"]
+        base[f"finite_{tag}_ratio_chain"] = r_ch
+        base[f"finite_{tag}_ratio_delta"] = r_iso
 
     # ---------------- 5. Fisher information / CRB ----------------
     mp, psi, _ = trained["mlp_fisher"]
