@@ -20,7 +20,10 @@ Covered:
   7. ``mean_ci`` is unbiased and brackets the sample mean;
   8. a paired bootstrap CI has the nominal coverage on synthetic data with a
      known true gain (the only test that exercises coverage itself);
-  9. the row accessors and the setting order used across the repo.
+  9. the row accessors and the setting order used across the repo;
+ 10. ``build_pec``/``digest_pec`` on a synthetic E6-shaped dataset whose every
+     claim has a known answer, which pins the sign convention of the PEC gains,
+     the well-conditioned/ill-conditioned split and the mismatch axis.
 
 Usage:  python test_bootstrap_ci.py
 """
@@ -379,10 +382,200 @@ def test_coverage():
           frac <= 0.95 + slack + 0.02, f"coverage {frac * 100:.1f}%")
 
 
+def _metric(key, arr, n_phase=5):
+    """The mse/mse_db fields (and the per-unit array) of one E6 budget row.
+
+    Built to satisfy the same identities ``selfcheck`` demands of the archived
+    file, so the synthetic data is checked by the same discipline as the real
+    thing: at infinite shots ``10log10(mean(err2)) == mse_db``, at finite shots
+    ``mean_t 10log10(mse_trial_t) == mse_db``, and ``mean(err2_phase) == mse``.
+    """
+    arr = np.asarray(arr, dtype=float)
+    r = {}
+    if key == "inf":
+        r["err2"] = arr.tolist()
+        r["mse"] = float(arr.mean())
+        r["mse_db"] = float(10.0 * np.log10(arr.mean()))
+    else:
+        r["mse_trial"] = arr.tolist()
+        r["err2_phase"] = [float(arr.mean())] * n_phase
+        r["mse"] = float(arr.mean())
+        r["mse_db"] = float((10.0 * np.log10(arr)).mean())
+        r["n_trials"] = int(arr.size)
+        r["mse_std"] = float(arr.std(ddof=1))
+        r["mse_sem"] = float(r["mse_std"] / math.sqrt(arr.size))
+    r["median_swpe_db"] = r["mse_db"]
+    r["mae"] = math.sqrt(r["mse"])
+    r["max_abs_err"] = math.sqrt(r["mse"])
+    return r
+
+
+def _pec_rows():
+    """A minimal E6-shaped dataset whose every claim has a known answer.
+
+    Four settings, two of them well conditioned (gamma <= PEC_GAMMA_WELL_COND)
+    and two not.  By construction:
+
+    * ``linv_calib`` is *elementwise identical* to ``pec_calib`` where the
+      assignment matrix is well conditioned -- that is the ``M = K^-T`` identity
+      -- and exactly a factor 2 better in MSE where it is not, i.e. the
+      regularised inverse wins a known 10log10(2) = 3.0103 dB;
+    * ``pec_known`` is identical to ``pec_calib`` on the two settings that have
+      an analytic rate, so the calibration penalty is exactly zero;
+    * ``none`` is 10x worse in MSE than PEC everywhere, so PEC must win 4/4;
+    * on the mismatch axis PEC and the inverse are identical, so neither may be
+      reported as ahead, and the matched rate (dq = 0) is 200x better in MSE
+      than the worst one.
+    """
+    N, NP, NT = 8, 5, 6
+    rng = np.random.RandomState(3)
+    SET = {"depol_0.002": 2.0, "deph_0.005": 10.0,
+           "readout_0.01": 50.0, "readout_0.02": 100.0}
+    KNOWN = {"readout_0.01", "readout_0.02"}
+    rows = []
+
+    def common(s, g):
+        return {"setting": s, "N": N, "gamma": g, "gamma_sq": g ** 2,
+                "noise": {"kind": "depolarizing", "p": 0.01, "readout_p": 0.0},
+                "q_hat": 0.5 * (1.0 - g ** (-1.0 / N)), "f_eff": None,
+                "gamma_calib": g, "gamma_known": None, "calib_rms_resid": 1e-3}
+
+    for s, g in SET.items():                       # ---- axis: overhead
+        rows.append({"axis": "overhead", "shots": "inf", "mismatch_dq": None,
+                     "method": "pec_calib", **common(s, g)})
+        if s in KNOWN:
+            rows.append({"axis": "overhead", "shots": "inf", "mismatch_dq": None,
+                         "method": "pec_known", **common(s, g), "gamma_known": g})
+
+    for key in ("inf", "S256"):                    # ---- axis: budget
+        for s, g in SET.items():
+            well = g <= bc.PEC_GAMMA_WELL_COND
+            n = NP if key == "inf" else NT           # phases at inf, trials else
+            a_none = np.clip(1e-1 * (1 + 0.1 * rng.randn(n)), 1e-9, None)
+            a_pec = np.clip(1e-2 * (1 + 0.1 * rng.randn(n)), 1e-9, None)
+            a_linv = a_pec * (1.0 if well else 0.5)
+            for m, a in (("none", a_none), ("pec_calib", a_pec),
+                         ("linv_calib", a_linv)):
+                rows.append({"axis": "budget", "shots": key, "mismatch_dq": None,
+                             "method": m, **common(s, g), **_metric(key, a, NP)})
+            if s in KNOWN:
+                rows.append({"axis": "budget", "shots": key, "mismatch_dq": None,
+                             "method": "pec_known", **common(s, g),
+                             **_metric(key, a_pec, NP)})
+
+    for dq in (-0.02, 0.0, 0.02):                  # ---- axis: mismatch
+        v_pec = 1e-4 if dq == 0.0 else 2e-2
+        for s, g in SET.items():
+            for m in ("pec_calib", "linv_calib"):
+                rows.append({"axis": "mismatch", "shots": "inf", "method": m,
+                             "mismatch_dq": float(dq), "q_assumed": 0.05 + dq,
+                             "analytic_bias_floor": abs(dq) * 10.0,
+                             **common(s, g), **_metric("inf", np.full(NP, v_pec))})
+            if dq == 0.0:
+                rows.append({"axis": "mismatch", "shots": "inf", "method": "none",
+                             "mismatch_dq": 0.0, "q_assumed": None,
+                             "analytic_bias_floor": None, **common(s, g),
+                             **_metric("inf", np.full(NP, 1.0))})
+    return rows
+
+
+
+def test_build_pec():
+    """(10) build_pec on a synthetic E6-shaped dataset with known answers."""
+    rows = _pec_rows()
+    met = [r for r in rows if r.get("mse") is not None]
+    n_id, wdb, wrel = bc.selfcheck(met)
+    check("synthetic PEC rows pass selfcheck (arrays reproduce mse/mse_db)",
+          n_id > 0 and wdb < 1e-8 and wrel < 1e-12,
+          f"{n_id} identities, worst dB {wdb:.2e}, worst rel {wrel:.2e}")
+
+    out = bc.build_pec(rows, n_boot=500, seed=0, conf=0.95)
+    check("build_pec raises no warnings on a complete dataset",
+          not out["warnings"], str(out["warnings"]))
+    check("all three axes are present",
+          out["meta"]["axes"] == ["budget", "mismatch", "overhead"],
+          str(out["meta"]["axes"]))
+    check("meta reports the 4 synthetic settings", out["meta"]["n_settings"] == 4)
+
+    # _spread: labels and the empty case
+    sp = bc._spread([1.0, 3.0, 2.0], ["a", "b", "c"])
+    check("_spread finds argmax/argmin by label",
+          sp["argmax"] == "b" and sp["argmin"] == "a" and sp["median"] == 2.0, str(sp))
+    check("_spread of nothing is None", bc._spread([]) is None)
+    check("_spread skips non-finite entries",
+          bc._spread([1.0, None, float("nan"), 5.0], list("abcd"))["n"] == 2)
+
+    # ---- orientation: a positive gain must mean pec_calib is better --------
+    cl = out["claims"]
+    check("PEC beats `none` in every setting and the gain reads positive",
+          cl["pec_wins_over_none_inf"] == 4 and cl["pec_losses_to_none_inf"] == 0
+          and cl["pec_gain_over_none_db_inf"] > 0,
+          f"gain {cl['pec_gain_over_none_db_inf']:+.2f} dB, wins "
+          f"{cl['pec_wins_over_none_inf']}/4")
+    # well-conditioned settings are exact ties (point == 0), ill-conditioned ones
+    # are losses: neither may be counted as a win.
+    check("ties are counted as neither wins nor losses",
+          cl["pec_wins_over_linv_calib_inf"] == 0
+          and cl["pec_losses_to_linv_calib_inf"] == 2
+          and cl["pec_n_over_linv_calib_inf"] == 4,
+          f"wins {cl['pec_wins_over_linv_calib_inf']}, losses "
+          f"{cl['pec_losses_to_linv_calib_inf']}, n {cl['pec_n_over_linv_calib_inf']}")
+
+    # ---- the deterministic-limit identity ---------------------------------
+    check("the 2 well-conditioned settings are where PEC == the inverse",
+          cl["identity_n_well_conditioned"] == 2 and cl["illcond_n"] == 2,
+          f"well {cl['identity_n_well_conditioned']}, ill {cl['illcond_n']}")
+    check("identity_max_dev_db is zero when the two estimators coincide",
+          cl["identity_max_dev_db"] < 1e-9, f"{cl['identity_max_dev_db']:.2e} dB")
+    want_db = 10.0 * np.log10(1e-2 / 5e-3)          # linv is 2x better in MSE
+    check("the regularised inverse is credited with exactly the 3.01 dB it wins",
+          abs(cl["illcond_max_linv_gain_db"] - want_db) < 1e-9,
+          f"{cl['illcond_max_linv_gain_db']:.4f} dB vs {want_db:.4f} dB")
+
+    # ---- genie PEC: gamma_known == gamma, so the calibration penalty is 0 ---
+    check("gamma is recovered exactly where the genie rate is available",
+          cl["gamma_rel_err_pure_max"] == 0.0, f"{cl['gamma_rel_err_pure_max']:.1e}")
+    check("pec_known is only defined on the 2 settings that have it",
+          cl["pec_n_over_pec_known_inf"] == 2, str(cl["pec_n_over_pec_known_inf"]))
+    check("PEC calibrated == PEC genie gives a zero penalty",
+          abs(cl["pec_gain_over_pec_known_db_inf"]) < 1e-9,
+          f"{cl['pec_gain_over_pec_known_db_inf']:.2e} dB")
+
+    # ---- the mismatch axis --------------------------------------------------
+    check("mismatch is summarised over the 3 assumed rates",
+          cl["mismatch_n_dq"] == 3, str(cl["mismatch_n_dq"]))
+    check("the worst assumed rate is the largest mse_db, not the smallest",
+          abs(cl["mismatch_worst_dq"]) == 0.02, f"dq = {cl['mismatch_worst_dq']}")
+    want_deg = 10.0 * np.log10(2e-2) - 10.0 * np.log10(1e-4)
+    check("mismatch degradation is the dB rise from the matched rate",
+          abs(cl["mismatch_degradation_db"] - want_deg) < 1e-9,
+          f"{cl['mismatch_degradation_db']:.4f} vs {want_deg:.4f} dB")
+    check("an identical tie is not counted as the inverse being ahead",
+          cl["mismatch_linv_ahead_count"] == 0, str(cl["mismatch_linv_ahead_count"]))
+
+    # ---- every interval must bracket its own point estimate -----------------
+    bad = [(k, s, name, e[name]["point"], e[name]["ci_lo"], e[name]["ci_hi"])
+           for k, per in out["per_setting"].items() for s, e in per.items()
+           for name in ("none", "linv_calib", "pec_known")
+           if e.get(name) and not (e[name]["ci_lo"] - 1e-9 <= e[name]["point"]
+                                   <= e[name]["ci_hi"] + 1e-9)]
+    check("every per-setting PEC interval brackets its point estimate",
+          not bad, str(bad[:2]))
+    badagg = [(k, name, a["mean"]["mean"], a["mean"]["ci_lo"], a["mean"]["ci_hi"])
+              for k, agg in out["aggregates"].items() for name, a in agg.items()
+              if a["mean"] and not (a["mean"]["ci_lo"] <= a["mean"]["mean"]
+                                    <= a["mean"]["ci_hi"])]
+    check("every aggregate PEC interval brackets its mean", not badagg,
+          str(badagg[:2]))
+    check("digest_pec renders and names the reference estimator",
+          "pec_calib" in bc.digest_pec(out))
+
+
+
 def main():
     for fn in (test_point_estimates, test_bootstrap_se, test_wilcoxon_null,
                test_sign_test, test_wilcoxon_vs_scipy, test_gap_closure,
-               test_mean_ci, test_accessors, test_coverage):
+               test_mean_ci, test_accessors, test_coverage, test_build_pec):
         print(f"\n--- {fn.__name__} ---")
         fn()
     print(f"\n{_NPASS} passed, {_NFAIL} failed, {_NSKIP} skipped")

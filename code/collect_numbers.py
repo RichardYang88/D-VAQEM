@@ -1025,6 +1025,234 @@ def sec_e5(rep, res, tag):
 
 
 # ======================================================================
+# E6  probabilistic error cancellation: what the quasi-probability route costs
+# ======================================================================
+def sec_e6(rep, res, tag, n_boot=20000, seed=0, conf=0.95):
+    """Digest the PEC baseline study and attach intervals to its claims.
+
+    PEC is the natural quasi-probability comparator for a distribution-level
+    map: ``test_pec.py`` proves it reproduces the deterministic inverse in
+    expectation, so the only thing it can differ by is variance -- inflated by
+    gamma^2 -- and model error.  E6 prices both.  The numbers come from
+    ``e6_pec.json`` and the intervals from :func:`bootstrap_ci.build_pec`, i.e.
+    from the same resampling primitives as the headline sweep, so a PEC interval
+    means exactly what every other interval in the paper means.  Writes
+    ``results/ci_pec_<tag>.json``.
+    """
+    import bootstrap_ci as bc
+
+    rep.h(2, "E6 -- probabilistic error cancellation (PEC)")
+    path = os.path.join(res, "e6_pec.json")
+    if not os.path.exists(path):
+        rep.p("**UNAVAILABLE**: no `e6_pec.json`; run "
+              "`run_experiments.py --exp pec` first.")
+        rep.set("pec_available", 0.0)
+        return None
+    rows = load(path)
+    met = [r for r in rows if r.get("mse") is not None]
+    try:
+        n_id, wdb, wrel = bc.selfcheck(met)
+    except AssertionError as exc:
+        rep.p(f"**UNAVAILABLE**: PEC self-check failed: {exc}")
+        rep.set("pec_available", 0.0)
+        return None
+    out = bc.build_pec(rows, n_boot=n_boot, seed=seed, conf=conf)
+    out["meta"]["source"] = os.path.basename(path)
+    dest = os.path.join(res, f"ci_pec_{tag}.json")
+    with open(dest, "w") as fh:
+        json.dump(out, fh, indent=1, default=float)
+    m = out["meta"]
+    rep.set("pec_available", 1.0)
+    rep.set("pec_N", float(m["N"]))
+    rep.set("pec_n_settings", float(m["n_settings"]))
+    rep.set("pec_n_rows", float(m["n_rows"]))
+    rep.set("pec_n_trials", float(m["n_trials"]))
+    # E6 is *not* run on the headline sweep's grid, and nothing downstream joins
+    # the two files, so the grid has to be stated rather than assumed: the
+    # per-phase count comes from the archived arrays and the calibration budget
+    # from the manifest addendum that records how E6 was invoked.
+    rep.set("pec_n_phase", float(m["n_phase"]))
+    man = load(os.path.join(res, "run_manifest.json"))
+    e6p = ((man.get("e6_pec_baseline_addendum") or {}).get("parameters") or {})
+    if e6p.get("n_cal") is not None:
+        rep.set("pec_n_cal", float(e6p["n_cal"]))
+    if e6p.get("n_tst") is not None:
+        rep.set("pec_n_tst_declared", float(e6p["n_tst"]))
+    rep.set("pec_selfcheck_n", float(n_id))
+    rep.set("pec_selfcheck_worst_db", float(wdb))
+    rep.set("pec_selfcheck_worst_rel", float(wrel))
+    rep.p(f"N = {m['N']}, {m['n_settings']} noise settings, {m['n_phase']} "
+          f"held-out test phases, {m['n_trials']} Monte-Carlo trials per "
+          f"finite-shot cell, {m['n_rows']} archived rows over the axes "
+          f"{', '.join(m['axes'])}.  Paired percentile bootstrap, "
+          f"B = {n_boot}, {int(round(conf * 100))}% intervals, seed = {seed}, "
+          f"written to `{os.path.basename(dest)}`.  Self-check: {n_id} array "
+          f"identities reproduce the stored `mse`/`mse_db` (worst dB deviation "
+          f"{wdb:.1e}, worst relative deviation {wrel:.1e}).")
+    rep.p(f"**Grid note.**  E6 is *not* run on the headline sweep's grid: it uses "
+          f"{m['n_phase']} test phases and {m['n_trials']} Monte-Carlo trials "
+          f"where E2 uses {int(float(rep.scalars.get('cfg_n_tst') or 0))} and "
+          f"{int(float(rep.scalars.get('cfg_n_trials') or 0))}, and its "
+          f"calibration budget is {e6p.get('n_cal', '?')} phases rather than "
+          f"{rep.scalars.get('cfg_n_cal', '?')}.  Nothing is joined across the "
+          f"two files---all four comparators (`pec_calib`, `pec_known`, "
+          f"`linv_calib`, `none`) are recomputed inside E6 on one shared grid and "
+          f"sampler seed---so every PEC contrast here is paired, but the absolute "
+          f"dB levels are not comparable to the E2 tables.")
+    for w in out["warnings"]:
+        rep.p(f"**WARNING**: {w}")
+
+
+    # ---- the overhead axis: gamma, and how well calibration recovers it -----
+    rep.h(3, "Sampling overhead gamma = (1-2q)^-N")
+    oh, cl0 = out["overhead"], out["claims"]
+    rep.table(["setting", "q_hat", "gamma", "gamma^2", "calib RMS resid",
+               "gamma_known", "rel. err of gamma"],
+              [[s, f"{e['q_hat']:.5f}", f"{e['gamma']:.4g}", f"{e['gamma_sq']:.4g}",
+                f"{e['calib_rms_resid']:.2e}",
+                "--" if e["gamma_known"] is None else f"{e['gamma_known']:.4g}",
+                "--" if e["gamma_rel_err"] is None else f"{e['gamma_rel_err']:.1e}"]
+               for s, e in oh["per_setting"].items()])
+    rep.p(f"- gamma spans {cl0['gamma_min']:.4g} (`{oh['gamma']['argmin']}`) to "
+          f"{cl0['gamma_max']:.4g} (`{cl0['gamma_max_setting']}`), median "
+          f"{cl0['gamma_median']:.4g}.  A PEC estimate is unbiased but its "
+          f"variance is inflated by gamma^2, i.e. by up to "
+          f"{cl0['gamma_sq_max_db']:.0f} dB, which is the whole story of why it "
+          f"loses at any finite shot budget.")
+    rep.p(f"- the flip rate is recovered from calibration data to "
+          f"{cl0['gamma_rel_err_pure_max']:.1e} relative on the "
+          f"{oh['n_pure_readout']} pure-readout settings, where the binomial flip "
+          f"family contains the channel exactly, but only to "
+          f"{cl0['gamma_rel_err_max']:.1e} over all settings where the genie rate "
+          f"is defined (worst `{cl0['gamma_rel_err_max_setting']}`), where it does "
+          f"not.  The largest worst-case calibration residual is "
+          f"{cl0['calib_rms_resid_max']:.2e} in sector RMS distance.")
+    for src, dst in (("gamma_min", "pec_gamma_min"),
+                     ("gamma_median", "pec_gamma_median"),
+                     ("gamma_max", "pec_gamma_max"),
+                     ("gamma_sq_max", "pec_gamma_sq_max"),
+                     ("gamma_sq_max_db", "pec_gamma_sq_max_db"),
+                     ("q_hat_max", "pec_qhat_max"),
+                     ("calib_rms_resid_max", "pec_calib_rms_resid_max"),
+                     ("gamma_rel_err_pure_max", "pec_gamma_relerr_pure_max"),
+                     ("gamma_rel_err_max", "pec_gamma_relerr_max")):
+        rep.set(dst, float(cl0[src]))
+    rep.set("pec_gamma_max_setting", cl0["gamma_max_setting"])
+    rep.set("pec_gamma_min_setting", oh["gamma"]["argmin"])
+    rep.set("pec_qhat_max_setting", cl0["q_hat_max_setting"])
+    rep.set("pec_gamma_relerr_max_setting", cl0["gamma_rel_err_max_setting"])
+    rep.set("pec_n_pure_readout", float(oh["n_pure_readout"]))
+
+
+    # ---- the budget axis: what the quasi-probability overhead costs ---------
+    cl = out["claims"]
+    rep.h(3, "Sampling budget (mean dB gain of PEC over the comparator, "
+             "95% CI, wins)")
+    body = []
+    for key in SHOT_KEYS:
+        if key not in out["aggregates"]:
+            continue
+        a = out["aggregates"][key]
+        row = [key]
+        for name, _lab in bc.PEC_COMPARISONS:
+            mu = a[name]["mean"]
+            row.append("--" if not mu else
+                       f"{mu['mean']:+.2f} [{mu['ci_lo']:+.2f},{mu['ci_hi']:+.2f}] "
+                       f"{a[name]['sign']['n_positive']}/{mu['n']}")
+        body.append(row)
+    rep.table(["shots", "vs none", "vs linv_calib", "vs pec_known"], body)
+    rep.p("Positive = PEC is better.  `wins` counts the settings in which PEC is "
+          "ahead, out of the settings where the comparator is defined; the sign "
+          "and Wilcoxon tests over the settings are exact.")
+    for key in SHOT_KEYS:
+        if key not in out["aggregates"]:
+            continue
+        a = out["aggregates"][key]
+        for name in ("none", "linv_calib", "pec_known"):
+            if f"pec_gain_over_{name}_db_{key}" not in cl:
+                continue
+            k = name.replace("_", "")
+            lo, hi = cl[f"pec_ci_over_{name}_{key}"]
+            rep.set(f"pec_gain_{k}_{key}", float(cl[f"pec_gain_over_{name}_db_{key}"]))
+            rep.set(f"pec_ci_lo_{k}_{key}", float(lo))
+            rep.set(f"pec_ci_hi_{k}_{key}", float(hi))
+            rep.set(f"pec_wins_{k}_{key}", float(cl[f"pec_wins_over_{name}_{key}"]))
+            rep.set(f"pec_losses_{k}_{key}", float(cl[f"pec_losses_to_{name}_{key}"]))
+            rep.set(f"pec_n_{k}_{key}", float(cl[f"pec_n_over_{name}_{key}"]))
+            rep.set(f"pec_psign_{k}_{key}",
+                    float(cl[f"pec_p_sign_over_{name}_{key}"]))
+            rep.set(f"pec_pwil_{k}_{key}",
+                    float(cl[f"pec_p_wilcoxon_over_{name}_{key}"]))
+            rep.p(f"- at `{key}`, against `{name}`: "
+                  f"{cl[f'pec_gain_over_{name}_db_{key}']:+.2f} dB "
+                  f"[{lo:+.2f},{hi:+.2f}], PEC ahead in "
+                  f"{cl[f'pec_wins_over_{name}_{key}']}/"
+                  f"{cl[f'pec_n_over_{name}_{key}']} settings, exact sign "
+                  f"p={cl[f'pec_p_sign_over_{name}_{key}']:.2e}, Wilcoxon "
+                  f"p={a[name]['wilcoxon']['p_two_sided']:.2e}")
+
+
+    # ---- PEC in the deterministic limit vs the regularised inverse ---------
+    rep.h(3, "Deterministic limit: the M = K^-T identity, and where it breaks")
+    rep.p(f"- over the {cl['identity_n_well_conditioned']} settings with "
+          f"gamma <= {bc.PEC_GAMMA_WELL_COND:g} (largest gamma "
+          f"{cl['identity_gamma_max_well_conditioned']:.4g}) PEC and the "
+          f"calibrated inverse agree to {cl['identity_max_dev_db']:.1e} dB in the "
+          f"decoded phase, which is the ``M == K^-T`` identity asserted in "
+          f"`test_pec.py` becoming visible downstream")
+    rep.p(f"- in the {cl['illcond_n']} ill-conditioned settings they separate, and "
+          f"the Tikhonov-regularised inverse wins by up to "
+          f"{cl['illcond_max_linv_gain_db']:.2f} dB "
+          f"(`{cl['illcond_max_linv_gain_setting']}`, gamma "
+          f"{cl['illcond_max_linv_gain_gamma']:.3g})")
+    for src, dst in (("identity_n_well_conditioned", "pec_identity_n"),
+                     ("identity_gamma_max_well_conditioned", "pec_identity_gamma_max"),
+                     ("identity_max_dev_db", "pec_identity_max_dev_db"),
+                     ("illcond_n", "pec_illcond_n"),
+                     ("illcond_max_linv_gain_db", "pec_illcond_max_gain_db"),
+                     ("illcond_max_linv_gain_gamma", "pec_illcond_max_gain_gamma")):
+        rep.set(dst, float(cl[src]))
+    # the well-conditioning threshold lives in bootstrap_ci, so it is exported
+    # here as well: the manuscript quotes it and check_tex.py must be able to
+    # rebuild the sentence from paper_numbers.json alone.
+    rep.set("pec_gamma_wellcond", float(bc.PEC_GAMMA_WELL_COND))
+    rep.set("pec_illcond_setting", cl["illcond_max_linv_gain_setting"])
+
+    # ---- the mismatch axis: a model error no amount of data removes ---------
+    rep.h(3, "Model mismatch (infinite shots; assumed minus true flip rate)")
+    mm = out["mismatch"]["per_dq"]
+    rep.table(["dq", "PEC (dB)", "calibrated inverse (dB)", "unmitigated (dB)",
+               "sector bias floor median / max"],
+              [[f"{e['dq']:+.3f}", f"{e['pec_db']:.2f}",
+                "--" if e["linv_db"] is None else f"{e['linv_db']:.2f}",
+                "--" if e["none_db"] is None else f"{e['none_db']:.2f}",
+                f"{e['floor_median']:.2e} / {e['floor_max']:.2e}"] for e in mm])
+    rep.p(f"- an error of {abs(cl['mismatch_worst_dq']):.3f} in the assumed flip "
+          f"rate costs {cl['mismatch_degradation_db']:.1f} dB "
+          f"({cl['mismatch_pec_db_matched']:.2f} -> "
+          f"{cl['mismatch_pec_db_worst']:.2f} dB)")
+    rep.p(f"- the deterministic inverse stays ahead at "
+          f"{cl['mismatch_linv_ahead_count']}/{cl['mismatch_n_dq']} assumed rates, "
+          f"by up to {cl['mismatch_linv_max_margin_db']:.2f} dB")
+    rep.p("- `analytic_bias_floor` is the worst-case RMS *sector* distance of a "
+          "mismatched model-based map, in the units of `flip_rate_residual`; it is "
+          "not a bound on the phase MSE and is therefore listed alongside it "
+          "rather than compared against it.")
+    for src, dst in (("mismatch_degradation_db", "pec_mismatch_degradation_db"),
+                     ("mismatch_worst_dq", "pec_mismatch_worst_dq"),
+                     ("mismatch_pec_db_matched", "pec_mismatch_db_matched"),
+                     ("mismatch_pec_db_worst", "pec_mismatch_db_worst"),
+                     ("mismatch_linv_ahead_count", "pec_mismatch_linv_ahead"),
+                     ("mismatch_n_dq", "pec_mismatch_n_dq"),
+                     ("mismatch_linv_max_margin_db", "pec_mismatch_linv_margin_db"),
+                     ("mismatch_floor_median_worst", "pec_mismatch_floor_median"),
+                     ("mismatch_n_settings", "pec_mismatch_n_settings")):
+        rep.set(dst, float(cl[src]))
+    return out
+
+
+
+# ======================================================================
 # seed robustness (optional extra runs) and simulator validation
 # ======================================================================
 def sec_seeds(rep, res, tags):
@@ -1218,6 +1446,7 @@ def main():
     sec_e3(rep, res, a.tag)
     sec_e4(rep, res, a.tag)
     sec_e5(rep, res, a.tag)
+    sec_e6(rep, res, a.tag, n_boot=a.n_boot, seed=a.boot_seed, conf=a.conf)
     sec_seeds(rep, res, [s for s in a.seeds.split(",") if s])
     sec_ablation(rep, res, a.tag)
     sec_resources(rep, res)

@@ -745,6 +745,318 @@ def digest(out):
     return "\n".join(L)
 
 
+# ======================================================================
+# E6: probabilistic error cancellation
+# ======================================================================
+# PEC is archived in its own file (`e6_pec.json`) on its own grid -- 20 noise
+# settings and three axes -- rather than as one more method of the headline
+# sweep, because its purpose is to price the quasi-probability route, not to rank
+# D-VAQEM.  It therefore gets its own builder, but it reuses the *same*
+# resampling primitives as the sweep, so an interval quoted for PEC means exactly
+# what an interval quoted for D-VAQEM means.
+PEC_NEW = "pec_calib"
+PEC_COMPARISONS = (("none", "unmitigated"),
+                   ("linv_calib", "deterministic calibrated inverse"),
+                   ("pec_known", "genie PEC (analytic flip rate)"))
+PEC_AXES = ("overhead", "budget", "mismatch")
+# Below this sampling overhead the sector assignment matrix is well conditioned
+# enough that the Tikhonov term inside linv_map_from_kernel is numerically
+# irrelevant, so PEC's deterministic limit and the calibrated linear inverse are
+# the *same* estimator there (test_pec.py asserts M == K^-T to ~1e-15).  Above it
+# the two separate, and the separation is the regularisation rather than a bug.
+PEC_GAMMA_WELL_COND = 20.0
+
+
+def _spread(vals, labels=None):
+    """min / median / max of a list of scalars, plus which label attains them."""
+    keep = [(l, x) for l, x in zip(labels, vals)
+            if x is not None and np.isfinite(x)] if labels is not None else \
+           [(None, x) for x in vals if x is not None and np.isfinite(x)]
+    if not keep:
+        return None
+    v = np.asarray([x for _, x in keep], dtype=float)
+    o = {"min": float(v.min()), "median": float(np.median(v)),
+         "max": float(v.max()), "n": int(v.size)}
+    if labels is not None:
+        o["argmax"] = keep[int(np.argmax(v))][0]
+        o["argmin"] = keep[int(np.argmin(v))][0]
+    return o
+
+
+def build_pec(rows, n_boot=20000, seed=0, conf=0.95):
+    """Intervals and exact tests for the probabilistic-error-cancellation study.
+
+    Only the ``budget`` axis carries a shot budget and therefore a resampling
+    unit: at infinite shots the interval runs over the held-out test phases
+    (``err2``) and at finite shots over the Monte-Carlo trials (``mse_trial``),
+    exactly as :func:`build` does for the sweep, and :func:`gain_ci_auto` chooses
+    between them.  The ``overhead`` axis is a deterministic property of the
+    channel and the ``mismatch`` axis is evaluated at infinite shots, so both are
+    summarised as point values across the settings.
+    """
+    idx = index(rows, "axis", "setting", "shots", "method")
+    settings = setting_sort({r["setting"] for r in rows})
+    out = {"meta": {"n_rows": len(rows), "n_settings": len(settings),
+                    "n_boot": int(n_boot), "seed": int(seed), "conf": float(conf),
+                    "axes": sorted({r["axis"] for r in rows}),
+                    "N": int(rows[0]["N"]),
+                    "n_phase": int(next((err2_of(r).size for r in rows
+                                         if err2_of(r) is not None), 0)),
+                    "n_trials": int(next((r["n_trials"] for r in rows
+                                          if r.get("n_trials")), 0)),
+                    "reference": PEC_NEW},
+           "overhead": {}, "per_setting": {}, "aggregates": {},
+           "mismatch": {}, "claims": {}, "warnings": []}
+    miss = missing_detail([r for r in rows if r.get("mse") is not None])
+    if miss:
+        out["warnings"].append(
+            f"{len(miss)} PEC rows carry no per-phase or per-trial arrays, so no "
+            "interval can be formed for them.")
+
+    # ---- axis 'overhead': the sampling cost of the quasi-probability map ----
+    per_oh = {}
+    for s in settings:
+        r = get(idx, "overhead", s, "inf", PEC_NEW)
+        if r is None:
+            out["warnings"].append(f"no overhead row for setting {s}")
+            continue
+        rk = get(idx, "overhead", s, "inf", "pec_known")
+        gk = None if rk is None else rk.get("gamma_known")
+        gk = None if gk is None else float(gk)
+        g = float(r["gamma"])
+        per_oh[s] = {"gamma": g, "gamma_sq": float(r["gamma_sq"]),
+                     "gamma_db": float(10.0 * np.log10(max(g, EPS))),
+                     "q_hat": float(r["q_hat"]),
+                     "f_eff": None if r.get("f_eff") is None else float(r["f_eff"]),
+                     "calib_rms_resid": float(r["calib_rms_resid"]),
+                     "gamma_known": gk,
+                     "gamma_rel_err": None if not gk else abs(g - gk) / gk}
+    lab = list(per_oh)
+    out["overhead"] = {
+        "per_setting": per_oh,
+        "gamma": _spread([per_oh[s]["gamma"] for s in lab], lab),
+        "gamma_sq": _spread([per_oh[s]["gamma_sq"] for s in lab], lab),
+        "gamma_db": mean_ci([per_oh[s]["gamma_db"] for s in lab], n_boot, seed, conf),
+        "q_hat": _spread([per_oh[s]["q_hat"] for s in lab], lab),
+        "calib_rms_resid": _spread([per_oh[s]["calib_rms_resid"] for s in lab], lab),
+    }
+
+
+    # ---- axis 'budget': PEC against the alternatives at each shot budget ----
+    bud = [r for r in rows if r["axis"] == "budget"]
+    present = [k for k in SHOT_KEYS if any(r["shots"] == k for r in bud)]
+    for key in present:
+        gains = {name: [] for name, _ in PEC_COMPARISONS}
+        per = {}
+        for s in settings:
+            r_new = get(idx, "budget", s, key, PEC_NEW)
+            if r_new is None:
+                out["warnings"].append(f"missing PEC row ({s}, {key})")
+                continue
+            entry = {"mse_db": float(r_new["mse_db"]),
+                     "gamma": float(r_new["gamma"]),
+                     "mse_db_ci": mse_db_ci(err2=err2_of(r_new),
+                                            mse_trial=trial_of(r_new),
+                                            n_boot=n_boot, seed=seed, conf=conf)}
+            for name, _lab in PEC_COMPARISONS:
+                r_o = get(idx, "budget", s, key, name)
+                ci = gain_ci_auto(r_o, r_new, n_boot, seed, conf)
+                entry[name] = ci
+                if ci is not None:
+                    gains[name].append(ci["point"])
+            per[s] = entry
+        out["per_setting"][key] = per
+        agg = {}
+        for name, lab in PEC_COMPARISONS:
+            agg[name] = {"label": lab,
+                         "mean": mean_ci(gains[name], n_boot, seed, conf),
+                         "sign": sign_test(gains[name]),
+                         "wilcoxon": wilcoxon_exact(gains[name])}
+        out["aggregates"][key] = agg
+
+
+    # ---- axis 'mismatch': a model-based map cannot average its model error away
+    # Infinite shots, so these are point values: the estimator converges to
+    # p @ K(q_true)^T @ M(q_assumed) and the residual is deterministic.  The
+    # stored analytic_bias_floor is a *sector-level* RMS distance (the units of
+    # flip_rate_residual), not a bound on the phase MSE, so it is reported
+    # alongside rather than compared against mse_db.
+    mm = [r for r in rows if r["axis"] == "mismatch"]
+    per_dq = []
+    for dq in sorted({r["mismatch_dq"] for r in mm}):
+        sub = [r for r in mm if r["mismatch_dq"] == dq]
+        e = {"dq": float(dq), "n_settings": len({r["setting"] for r in sub})}
+        for nm, k in ((PEC_NEW, "pec"), ("linv_calib", "linv")):
+            v = [r["mse_db"] for r in sub if r["method"] == nm]
+            e[f"{k}_db"] = float(np.mean(v)) if v else None
+            e[f"{k}_n"] = len(v)
+        v = [r["mse_db"] for r in sub if r["method"] == "none"]
+        e["none_db"] = float(np.mean(v)) if v else None
+        fl = [r["analytic_bias_floor"] for r in sub
+              if r["method"] == PEC_NEW and r.get("analytic_bias_floor") is not None]
+        e["floor_median"] = float(np.median(fl)) if fl else None
+        e["floor_max"] = float(np.max(fl)) if fl else None
+        per_dq.append(e)
+    out["mismatch"] = {"per_dq": per_dq}
+
+
+
+    # ---- the specific sentences of the manuscript, as verdicts ------------
+    cl = out["claims"]
+    oh = out["overhead"]["per_setting"]
+    pure = [s for s in oh if s.startswith("readout_")]
+    rel_all = [(s, oh[s]["gamma_rel_err"]) for s in oh
+               if oh[s]["gamma_rel_err"] is not None]
+    rel_pure = [(s, oh[s]["gamma_rel_err"]) for s in pure
+                if oh[s]["gamma_rel_err"] is not None]
+    out["overhead"]["n_pure_readout"] = len(pure)
+    out["overhead"]["gamma_rel_err_pure"] = _spread([v for _, v in rel_pure],
+                                                    [s for s, _ in rel_pure])
+    out["overhead"]["gamma_rel_err_all"] = _spread([v for _, v in rel_all],
+                                                   [s for s, _ in rel_all])
+    cl["gamma_min"] = out["overhead"]["gamma"]["min"]
+    cl["gamma_median"] = out["overhead"]["gamma"]["median"]
+    cl["gamma_max"] = out["overhead"]["gamma"]["max"]
+    cl["gamma_max_setting"] = out["overhead"]["gamma"]["argmax"]
+    cl["gamma_sq_max"] = out["overhead"]["gamma_sq"]["max"]
+    cl["gamma_sq_max_db"] = float(10.0 * np.log10(max(cl["gamma_sq_max"], EPS)))
+    cl["q_hat_max"] = out["overhead"]["q_hat"]["max"]
+    cl["q_hat_max_setting"] = out["overhead"]["q_hat"]["argmax"]
+    cl["calib_rms_resid_max"] = out["overhead"]["calib_rms_resid"]["max"]
+    cl["gamma_rel_err_pure_max"] = (out["overhead"]["gamma_rel_err_pure"] or {}).get("max")
+    cl["gamma_rel_err_max"] = (out["overhead"]["gamma_rel_err_all"] or {}).get("max")
+    cl["gamma_rel_err_max_setting"] = (out["overhead"]["gamma_rel_err_all"] or {}).get("argmax")
+
+    # The deterministic limit of PEC *is* the calibrated linear inverse
+    # (M == K^-T), so at infinite shots the two must coincide wherever the
+    # assignment matrix is well conditioned; any residual there is the Tikhonov
+    # term of linv_map_from_kernel, and it can only appear once gamma is large.
+    if "inf" in out["per_setting"]:
+        well, ill = [], []
+        for s, e in out["per_setting"]["inf"].items():
+            ci = e.get("linv_calib")
+            if ci is None:
+                continue
+            (well if e["gamma"] <= PEC_GAMMA_WELL_COND else ill).append((s, -ci["point"], e["gamma"]))
+        cl["identity_n_well_conditioned"] = len(well)
+        cl["identity_gamma_max_well_conditioned"] = max((g for _, _, g in well), default=None)
+        cl["identity_max_dev_db"] = max((abs(d) for _, d, _ in well), default=None)
+        cl["illcond_n"] = len(ill)
+        if ill:
+            s0, d0, g0 = max(ill, key=lambda t: t[1])
+            cl["illcond_max_linv_gain_db"] = d0
+            cl["illcond_max_linv_gain_setting"] = s0
+            cl["illcond_max_linv_gain_gamma"] = g0
+
+    for key in present:
+        per = out["per_setting"][key]
+        agg = out["aggregates"][key]
+        for name in ("none", "linv_calib", "pec_known"):
+            mu = agg[name]["mean"]
+            if not mu:
+                continue
+            # gain_ci_* is oriented as db(comparator) - db(pec_calib), so a
+            # *positive* point estimate means pec_calib is the better estimator.
+            pts = [e[name]["point"] for e in per.values() if e.get(name)]
+            cl[f"pec_gain_over_{name}_db_{key}"] = mu["mean"]
+            cl[f"pec_ci_over_{name}_{key}"] = [mu["ci_lo"], mu["ci_hi"]]
+            cl[f"pec_wins_over_{name}_{key}"] = sum(1 for p in pts if p > 0.0)
+            cl[f"pec_losses_to_{name}_{key}"] = sum(1 for p in pts if p < 0.0)
+            cl[f"pec_n_over_{name}_{key}"] = mu["n"]
+            cl[f"pec_p_sign_over_{name}_{key}"] = agg[name]["sign"]["p_two_sided"]
+            cl[f"pec_p_wilcoxon_over_{name}_{key}"] = agg[name]["wilcoxon"]["p_two_sided"]
+
+    pd = out["mismatch"]["per_dq"]
+    if pd:
+        zero = next((e for e in pd if e["dq"] == 0.0), None)
+        # mse_db is a cost, so the *worst* mismatch is the largest value.
+        worst = max((e for e in pd if e["pec_db"] is not None),
+                    key=lambda e: e["pec_db"])
+        cl["mismatch_dq_values"] = [e["dq"] for e in pd]
+        cl["mismatch_n_settings"] = pd[0]["n_settings"]
+        if zero and zero["pec_db"] is not None:
+            cl["mismatch_pec_db_matched"] = zero["pec_db"]
+            cl["mismatch_linv_db_matched"] = zero["linv_db"]
+            cl["mismatch_degradation_db"] = worst["pec_db"] - zero["pec_db"]
+        cl["mismatch_worst_dq"] = worst["dq"]
+        cl["mismatch_pec_db_worst"] = worst["pec_db"]
+        cl["mismatch_linv_db_worst"] = worst["linv_db"]
+        cl["mismatch_floor_median_worst"] = worst["floor_median"]
+        cl["mismatch_floor_max_worst"] = worst["floor_max"]
+        both = [e for e in pd if e["pec_db"] is not None and e["linv_db"] is not None]
+        cl["mismatch_linv_ahead_count"] = sum(1 for e in both
+                                              if e["linv_db"] < e["pec_db"])
+        cl["mismatch_n_dq"] = len(both)
+        cl["mismatch_linv_max_margin_db"] = max((e["pec_db"] - e["linv_db"]
+                                                 for e in both), default=None)
+    return out
+
+
+
+def digest_pec(out):
+    """Markdown digest of a :func:`build_pec` result."""
+    m = out["meta"]
+    L = [f"# PEC (E6): paired bootstrap CIs and exact tests "
+         f"(B={m['n_boot']}, {m['conf'] * 100:.0f}% percentile, seed={m['seed']})",
+         "",
+         f"Source: `{m.get('source', '?')}`  |  settings: {m['n_settings']}  |  "
+         f"rows: {m['n_rows']}  |  axes: {', '.join(m['axes'])}",
+         "",
+         f"Positive gain = `{m['reference']}` is better.  Interval units: the test "
+         "phases at infinite shots, the Monte-Carlo trials at finite shots.",
+         ""]
+    for w in out["warnings"]:
+        L.append(f"> **WARNING** {w}")
+    if out["warnings"]:
+        L.append("")
+    oh = out["overhead"]
+    g = oh.get("gamma")
+    if g:
+        L += ["## Sampling overhead", "",
+              f"- gamma over {g['n']} settings: min {g['min']:.4g} ({g['argmin']}), "
+              f"median {g['median']:.4g}, max {g['max']:.4g} ({g['argmax']})",
+              f"- a PEC estimate is unbiased but its variance is inflated by "
+              f"gamma^2, up to {oh['gamma_sq']['max']:.4g} at "
+              f"{oh['gamma_sq']['argmax']}"]
+        rp, ra = oh.get("gamma_rel_err_pure"), oh.get("gamma_rel_err_all")
+        if rp and ra:
+            L.append(f"- the calibrated rate reproduces the analytic one to "
+                     f"{rp['max']:.1e} relative on the {oh['n_pure_readout']} "
+                     f"pure-readout settings and to {ra['max']:.1e} over all of "
+                     f"them, where the single-parameter flip family cannot "
+                     f"represent the channel")
+        L.append("")
+    for key in SHOT_KEYS:
+        if key not in out["aggregates"]:
+            continue
+        a = out["aggregates"][key]
+        L += [f"## Shot budget `{key}`", "",
+              "| PEC vs | mean gain (dB) | 95% CI | sign p (wins) | Wilcoxon p |",
+              "|---|---|---|---|---|"]
+        for name, lab in PEC_COMPARISONS:
+            L.append(_row_fmt(lab, a[name]))
+        L.append("")
+    mm = out.get("mismatch") or {}
+    if mm.get("per_dq"):
+        L += ["## Model mismatch (infinite shots)", "",
+              "| assumed rate error dq | PEC (dB) | calibrated inverse (dB) | "
+              "sector bias floor, median |", "|---|---|---|---|"]
+        for e in mm["per_dq"]:
+            L.append(f"| {e['dq']:+.3f} | {e['pec_db']:.2f} | "
+                     f"{e['linv_db']:.2f} | {e['floor_median']:.2e} |")
+        L.append("")
+    cl = out.get("claims") or {}
+    if cl:
+        L += ["## The manuscript claims, re-evaluated", ""]
+        for k in sorted(cl):
+            v = cl[k]
+            L.append(f"- `{k}` = " + (json.dumps(v, default=float)
+                                      if isinstance(v, dict) else repr(v)))
+        L.append("")
+    return "\n".join(L)
+
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="paired bootstrap CIs and exact tests for a sweep result file")
@@ -756,6 +1068,13 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--conf", type=float, default=0.95)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--pec-file", default=None,
+                    help="PEC/E6 result JSON (default: <res>/e6_pec.json)")
+    ap.add_argument("--pec-out", default=None,
+                    help="where to write the PEC intervals "
+                         "(default: <res>/ci_pec_<tag>.json)")
+    ap.add_argument("--no-pec", action="store_true",
+                    help="skip the PEC/E6 block")
     a = ap.parse_args(argv)
 
     path = a.file or os.path.join(a.res, f"{a.tag}_sweep.json")
@@ -784,6 +1103,31 @@ def main(argv=None):
     print(f"  -> wrote {dest}")
     print()
     print(digest(out))
+
+    # ---- the PEC/E6 study, archived separately from the sweep --------------
+    if not a.no_pec:
+        ppath = a.pec_file or os.path.join(a.res, "e6_pec.json")
+        if not os.path.exists(ppath):
+            print(f"\nno PEC result file at {ppath}; skipping the E6 block")
+            return 0
+        prows = load(ppath)
+        pmet = [r for r in prows if r.get("mse") is not None]
+        try:
+            pn, pwdb, pwrel = selfcheck(pmet)
+        except AssertionError as exc:
+            print(f"\nPEC selfcheck FAILED: {exc}")
+            return 2
+        print(f"\nPEC selfcheck: {pn} array identities reproduce the stored "
+              f"mse/mse_db (worst dB deviation {pwdb:.2e}, worst relative "
+              f"{pwrel:.2e})")
+        pout = build_pec(prows, a.n_boot, a.seed, a.conf)
+        pout["meta"]["source"] = os.path.basename(ppath)
+        pdest = a.pec_out or os.path.join(a.res, f"ci_pec_{a.tag}.json")
+        with open(pdest, "w") as fh:
+            json.dump(pout, fh, indent=1, default=float)
+        print(f"  -> wrote {pdest}")
+        print()
+        print(digest_pec(pout))
     return 0
 
 

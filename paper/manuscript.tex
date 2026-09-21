@@ -523,6 +523,14 @@ estimators).  The noiseless decoder evaluated on clean data provides the floor,
 and the Cram\'er--Rao bound $1/(S\,F(\yvec))$ of the \emph{noisy} family
 provides the information-theoretic reference at finite shots.
 
+A seventh comparator, \emph{probabilistic error cancellation} (PEC), is evaluated
+on its own grid rather than as a row of the headline table: it is the
+quasi-probability form of (iv), sharing its assignment matrix but sampling the
+inverse channel shot by shot instead of inverting it, so its purpose is to price
+that route rather than to rank methods.  Its results, and the reason it is not a
+row of Supplemental Tables~\ref{tab:sweep_inf}--\ref{tab:sweep_S1024}, are the
+subject of Sec.~\ref{subsec:pec}.
+
 Baselines (iii) and (iv) share one inversion machinery and differ only in where
 the assignment matrix comes from, which is what makes the pair informative.  The
 calibration in (iv) is not a handicap: on the four pure-readout settings
@@ -817,6 +825,79 @@ targets: $512$ shots per phase are as good as exact targets.}
 \end{figure*}
 
 
+\subsection{Probabilistic error cancellation: the price of quasi-probability}
+\label{subsec:pec}
+
+Readout-error mitigation is usually deployed in its \emph{probabilistic} form:
+sample the quasi-probability decomposition of the inverse channel shot by shot
+rather than invert the assignment matrix.  The two are the same estimator in
+expectation---our test suite verifies $M = K^{-\mathsf T}$ to machine precision,
+and on the decoded phase they agree to $5.7\times10^{-3}$ dB across the $13$
+settings whose overhead satisfies $\gamma\le20$ (largest $\gamma=18.1$ among
+them)---so nothing but \emph{variance} can separate them, which makes PEC the
+sharpest available probe of what a quasi-probability correction costs.  We
+therefore ran it on its own grid: the $16$ settings of the headline sweep plus a
+mixed depolarising--readout setting and three stronger readout rates, $20$ in
+total, with $25$ calibration phases, $41$ held-out test phases and $25$
+Monte-Carlo trials per finite-shot cell.  All four comparators---calibrated PEC,
+PEC handed the analytic rate, the deterministic inverse and no mitigation---are
+recomputed on that one grid from a shared sampler seed, so every contrast below
+is paired.  The grid deliberately differs from the headline sweep's ($21$
+calibration and $21$ test phases, Supplemental
+Tables~\ref{tab:sweep_inf}--\ref{tab:sweep_S1024}) and nothing is joined across
+the two files, so the absolute decibel levels quoted here are not comparable to
+that table; only the PEC-versus-inverse contrast, which is what this subsection
+is about, is.
+
+The overhead is the whole story.  The calibrated rate gives
+$\gamma=(1-2\hat q)^{-N}$ between $1.18$ and $5.4\times10^{10}$ (median $8.51$),
+and a PEC estimate carries $\gamma^2$ times the variance of the deterministic
+one: up to $215$ dB of variance amplification at dephasing $p=0.05$, where
+$\hat q=0.477$ approaches the $q=1/2$ singularity at which the channel ceases to
+be invertible at all.  Calibration is not the limitation.  On the $7$
+pure-readout settings, where the binomial family contains the channel exactly,
+$\gamma$ is recovered to $7.3\times10^{-11}$ relative; on depolarising noise,
+where a single flip rate can only ever be a surrogate, the same fit is up to
+$26\%$ off.  Hence PEC built on calibration data is physically indistinguishable
+from PEC handed the analytic rate at every finite budget---the mean difference is
+at most $0.05$ dB in magnitude and the exact Wilcoxon test fails to reject
+equality at all three ($p\ge0.12$)---and the $0.9$ dB it concedes to the genie at
+infinite shots $[-2.0,-0.2]$ is the only place where its model error is visible
+at all.
+
+The verdict is unambiguous, and it is the opposite of a success story.  Against
+no mitigation PEC wins decisively at infinite shots ($+31.1$ dB $[+23.9,+38.6]$,
+ahead in $20/20$ settings, exact sign $p\le1.9\times10^{-6}$), yet at $S=256$ it
+is statistically indistinguishable from doing nothing ($-0.3$ dB $[-0.9,+0.4]$,
+sign $p=0.50$) and is in fact \emph{worse} in $12$ of the $20$ settings; it needs
+$S\ge1024$ before the gain resolves at all ($+2.8$ dB $[+1.4,+4.2]$, exact
+Wilcoxon $p=0.003$).  Against the deterministic calibrated inverse it loses
+everywhere---ahead in $0/20$ settings at each of $S=256$, $1024$ and $4096$, by
+$-4.6$ dB $[-6.3,-3.1]$, $-5.0$ dB $[-6.7,-3.5]$ and $-5.6$ dB $[-7.4,-3.9]$,
+with exact sign and Wilcoxon $p\le1.9\times10^{-6}$ in all three---and even at
+infinite shots the mean is $-0.9$ dB $[-2.09,-0.04]$, the exact Wilcoxon test
+rejecting equality at $p=0.030$.  Cancelling errors probabilistically is not
+\emph{wrong}: it is unbiased, and it is the right instrument when shots are
+free.  It is simply dominated, because it pays $\gamma^2$ for an expectation the
+matrix inverse delivers exactly.
+
+Two consequences matter for how such a baseline ought to be run.  First, where
+the assignment matrix is ill-conditioned the two estimators do separate, and the
+\emph{regularised} one is better: across the $7$ settings with $\gamma>20$ the
+Tikhonov term inside the deterministic inverse buys up to $8.9$ dB (dephasing
+$p=0.05$, $\gamma=5.4\times10^{10}$).  An unregularised exact inverse is not a
+fair comparator there, and the gap is a property of the inversion rather than of
+PEC.  Second, PEC does not escape model error either.  Mis-specifying the flip
+rate by $0.02$ costs $19.1$ dB ($-39.2\to-20.1$ dB); the deterministic inverse
+stays ahead at $6$ of the $7$ assumed rates, by up to $0.9$ dB; and the
+worst-case residual \emph{sector} distance of the mismatched map is $0.25$.
+That residual is a bias no amount of data removes---precisely the property a map
+fitted to the device one actually has does not possess.  This is the sense in
+which \dvaqem{} is model-free rather than model-agnostic: it is fitted to the
+channel that is present, so it has neither the $\gamma^2$ variance penalty of a
+quasi-probability correction nor the irreducible bias of a mis-specified one.
+
+
 \subsection{Robustness: seeds, ablations and simulator validation}
 \label{subsec:robust}
 
@@ -845,9 +926,14 @@ the targets), and a decoder that is frozen after certification.  It assumes
 folded circuits at inference, and no modification of the certified estimator.
 The price of model-freedom is visible in our numbers as the $46$ dB gap to the
 known-noise-model oracle at infinite shots; where a trustworthy noise model
-exists, the oracle (or probabilistic error cancellation built on it) remains
-the better tool, and \dvaqem{} is the tool for the regime where no such model
-is available---which is the regime of most near-term deployments.
+exists the oracle remains the better tool, and \dvaqem{} is the tool for the
+regime where no such model is available---which is the regime of most near-term
+deployments.  Model knowledge is worth less than one might expect, though, as
+soon as the correction has to be \emph{sampled}: probabilistic error
+cancellation built on the same model is dominated by the deterministic inverse
+in $20/20$ settings at every finite budget we tested
+(Sec.~\ref{subsec:pec}), so the advantage of knowing the channel is largely
+confined to the infinite-shot limit.
 
 \paragraph{Why distribution level, and why now.}
 The sufficiency result (Theorem~\ref{thm:sufficiency}) is what turns

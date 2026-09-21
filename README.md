@@ -71,18 +71,21 @@ Two caveats that matter for the archived numbers:
 Experiment map: `sufficiency` = E1 (Theorem 1 numerics), `sweep` = E2
 (headline 16 settings × 4 shot budgets), `shots` = E3 (delta-method validation
 and the shot-aware objective), `scaling` = E4 (N = 4…10), `calib` = E5
-(calibration budget).  `--exp-root` keeps ablations and repeats out of
-`results/` so the paper numbers can never be overwritten by accident.
+(calibration budget), `pec` = E6 (probabilistic error cancellation: the
+quasi-probability baseline on its own 20-setting grid).  `--exp-root` keeps
+ablations and repeats out of `results/` so the paper numbers can never be
+overwritten by accident.
 
 ## Regenerating the paper artefacts
 
 ```bash
 cd code
-python collect_numbers.py --tag final   # paper_numbers.{md,json} + ci_final.json
+python collect_numbers.py --tag final   # paper_numbers.{md,json}
+                                        #   + ci_final.json, ci_pec_final.json
 python make_tables.py     --tag final   # paper/tables.tex, tables_supplement.tex (S1–S12)
 python make_figures.py    --tag final   # figures/fig1..fig6 (.pdf/.png)
 python bootstrap_ci.py    --tag final   # standalone interval/test digest (optional)
-python test_bootstrap_ci.py             # 56 self-checks of the statistics
+python test_bootstrap_ci.py             # 78 self-checks of the statistics
 cd ../paper && python check_tex.py      # integrity + audit of every quoted number
 ```
 

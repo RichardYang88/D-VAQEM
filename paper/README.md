@@ -83,6 +83,15 @@ per-phase / per-trial arrays that `run_experiments.metrics(detail=True)` stores,
 so a sweep produced before that change yields no intervals (the digest says so
 explicitly rather than failing silently).
 
+`collect_numbers.py` additionally calls `bootstrap_ci.build_pec()` on
+`../results/e6_pec.json` and writes `../results/ci_pec_final.json`, the intervals
+and exact tests behind the probabilistic-error-cancellation subsection
+(Sec. `subsec:pec`).  E6 is archived separately from the sweep because it is
+evaluated on its own 20-setting grid and its purpose is to price the
+quasi-probability route rather than to rank methods; `build_pec` nonetheless
+reuses the *same* resampling primitives, so a PEC interval means exactly what a
+D-VAQEM interval means.  Pass `--no-pec` to `bootstrap_ci.py` to skip that block.
+
 Every number in `manuscript.tex` is taken from
 `../results/paper_numbers.md` (machine-readable mirror:
 `../results/paper_numbers.json`); the tables and figures are generated

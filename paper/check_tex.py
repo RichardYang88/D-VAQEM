@@ -217,6 +217,166 @@ def check_numbers(text, pn):
         want(f"${g('readout_inf_l2_db_weakest', 1)}$ dB against a floor of "
              f"${g('readout_inf_floor_db', 1)}$ dB",
              "learned map vs floor at the weakest readout rate")
+    # ---- probabilistic error cancellation (E6) -----------------------------
+    if pn.get("pec_available"):
+        CHAN = {"depol": "depolarising", "deph": "dephasing",
+                "ampdamp": "amplitude damping", "readout": "readout bit-flip"}
+
+        def gs(key, nd=1):
+            """Signed decimal, the way the prose writes a dB gain: +31.1/-4.6."""
+            return f"{float(pn[key]):+.{nd}f}"
+
+        def n(key):
+            """An integer count stored as a float scalar."""
+            return int(pn[key])
+
+        def sci(key, nd=1):
+            """Scientific notation as the manuscript renders it."""
+            a, e = f"{float(pn[key]):.{nd}e}".split("e")
+            return f"{a}\\times10^{{{int(e)}}}"
+
+        def pci(name, nd=1):
+            """A PEC confidence interval written the way the prose writes it."""
+            return (f"$[{float(pn['pec_ci_lo_' + name]):+.{nd}f},"
+                    f"{float(pn['pec_ci_hi_' + name]):+.{nd}f}]$")
+
+        print("\nPEC / probabilistic error cancellation (E6) claims:")
+        want(f"agree to ${sci('pec_identity_max_dev_db')}$ dB across the "
+             f"${n('pec_identity_n')}$ settings whose overhead satisfies "
+             f"$\\gamma\\le{n('pec_gamma_wellcond')}$ (largest "
+             f"$\\gamma={g('pec_identity_gamma_max', 1)}$ among them)",
+             "where PEC's deterministic limit equals the calibrated inverse")
+        want(f"rates, ${n('pec_n_settings')}$ in total",
+             "number of noise settings in the PEC study")
+        want(f"with ${n('pec_n_cal')}$ calibration phases, "
+             f"${n('pec_n_phase')}$ held-out test phases and "
+             f"${n('pec_n_trials')}$ Monte-Carlo trials per finite-shot cell",
+             "the E6 grid: calibration phases, test phases, Monte-Carlo trials")
+        want(f"differs from the headline sweep's (${n('cfg_n_cal')}$ "
+             f"calibration and ${n('cfg_n_tst')}$ test phases",
+             "the headline sweep's grid, quoted to contrast it with E6's")
+        want(f"${n('pec_n_trials')}$ Monte-Carlo trials per finite-shot cell",
+             "Monte-Carlo trials behind every PEC finite-shot number")
+        want(f"between ${g('pec_gamma_min', 2)}$ and ${sci('pec_gamma_max')}$ "
+             f"(median ${g('pec_gamma_median', 2)}$)",
+             "range and median of the PEC sampling overhead gamma")
+        # g() returns a float, which would render a 0-dp value as "215.0";
+        # format this one as a string.
+        want(f"up to ${float(pn['pec_gamma_sq_max_db']):.0f}$ dB of variance "
+             f"amplification",
+             "gamma^2 expressed as a variance amplification in dB")
+        want(f"$\\hat q={g('pec_qhat_max', 3)}$ approaches",
+             "calibrated flip rate closest to the q=1/2 singularity")
+        want(f"On the ${n('pec_n_pure_readout')}$ pure-readout settings",
+             "settings where the binomial family contains the channel exactly")
+        want(f"$\\gamma$ is recovered to ${sci('pec_gamma_relerr_pure_max')}$ "
+             f"relative", "accuracy of the calibrated gamma on pure readout noise")
+        want(f"the same fit is up to "
+             f"${round(float(pn['pec_gamma_relerr_max']) * 100)}\\%$ off",
+             "worst relative error of the calibrated gamma off the flip family")
+        fk = ("S256", "S1024", "S4096")
+        # "fails to reject equality at all three" is a claim about the tests, so
+        # verify it instead of only string-matching the sentence around it.  Note
+        # the S256 interval is [+0.01,+0.06]: it excludes zero, so the honest
+        # wording is a bound on the *magnitude*, not "every interval covers zero".
+        rej = [k for k in fk if float(pn[f"pec_pwil_pecknown_{k}"]) < 0.05
+               or float(pn[f"pec_psign_pecknown_{k}"]) < 0.05]
+        if rej:
+            state["bad"] += 1
+            print(f"  MISMATCH [calibrated vs genie PEC]: the manuscript says the "
+                  f"exact tests fail to reject equality at every finite budget, "
+                  f"but they reject at {rej}")
+        gmax = max(abs(float(pn[f"pec_gain_pecknown_{k}"])) for k in fk)
+        pmin = min(float(pn[f"pec_pwil_pecknown_{k}"]) for k in fk)
+        want(f"the mean difference is at most ${gmax:.2f}$ dB in magnitude and "
+             f"the exact Wilcoxon test fails to reject equality at all three "
+             f"($p\\ge{pmin:.2f}$)",
+             "calibrated PEC vs genie PEC at every finite budget")
+        want(f"the ${abs(float(pn['pec_gain_pecknown_inf'])):.1f}$ dB it "
+             f"concedes to the genie at infinite shots {pci('pecknown_inf')}",
+             "calibration penalty of PEC at infinite shots")
+
+
+        # ---- the verdict: PEC against the alternatives at each budget -------
+        want(f"at infinite shots (${gs('pec_gain_none_inf')}$ dB "
+             f"{pci('none_inf')}, ahead in "
+             f"${n('pec_wins_none_inf')}/{n('pec_n_none_inf')}$ settings, exact "
+             f"sign $p\\le{latex_p(pn['pec_psign_none_inf'])}$)",
+             "PEC vs no mitigation at infinite shots")
+        want(f"doing nothing (${gs('pec_gain_none_S256')}$ dB "
+             f"{pci('none_S256')}, sign "
+             f"$p={float(pn['pec_psign_none_S256']):.2f}$)",
+             "PEC vs no mitigation at S=256")
+        want(f"in fact \\emph{{worse}} in ${n('pec_losses_none_S256')}$ of the "
+             f"${n('pec_n_none_S256')}$ settings",
+             "settings where PEC at S=256 is worse than not mitigating")
+        want(f"resolves at all (${gs('pec_gain_none_S1024')}$ dB "
+             f"{pci('none_S1024')}, exact Wilcoxon "
+             f"$p={float(pn['pec_pwil_none_S1024']):.3f}$)",
+             "PEC vs no mitigation at S=1024")
+        # "it needs S>=1024 before the gain resolves" is a claim about which
+        # intervals exclude zero, so verify that rather than only the numbers.
+        cov256 = (float(pn["pec_ci_lo_none_S256"]) <= 0.0
+                  <= float(pn["pec_ci_hi_none_S256"]))
+        excl1024 = float(pn["pec_ci_lo_none_S1024"]) > 0.0
+        if not (cov256 and excl1024):
+            state["bad"] += 1
+            print(f"  MISMATCH [PEC vs none, resolvability]: the manuscript says "
+                  f"the gain is unresolved at S=256 and resolves at S=1024, but "
+                  f"the S=256 interval covers zero = {cov256} and the S=1024 "
+                  f"interval excludes zero = {excl1024}")
+        # "loses everywhere at every finite budget" is a claim about all three
+        # budgets, so assert it rather than quoting one of them.
+        FIN = ("S256", "S1024", "S4096")
+        lost = [k for k in FIN
+                if n(f"pec_losses_linvcalib_{k}") != n(f"pec_n_linvcalib_{k}")]
+        if lost:
+            state["bad"] += 1
+            print(f"  MISMATCH [PEC vs calibrated inverse]: the manuscript says "
+                  f"PEC loses in every setting at every finite budget, but at "
+                  f"{lost} it does not")
+        # the quoted bound has to cover both exact tests at all three budgets
+        pmax = max(max(float(pn[f"pec_psign_linvcalib_{k}"]),
+                       float(pn[f"pec_pwil_linvcalib_{k}"])) for k in FIN)
+        want(f"everywhere---ahead in ${n('pec_wins_linvcalib_S256')}/"
+             f"{n('pec_n_linvcalib_S256')}$ settings at each of $S=256$, $1024$ "
+             f"and $4096$, by ${gs('pec_gain_linvcalib_S256')}$ dB "
+             f"{pci('linvcalib_S256')}, ${gs('pec_gain_linvcalib_S1024')}$ dB "
+             f"{pci('linvcalib_S1024')} and ${gs('pec_gain_linvcalib_S4096')}$ dB "
+             f"{pci('linvcalib_S4096')}, with exact sign and Wilcoxon "
+             f"$p\\le{latex_p(pmax)}$ in all three",
+             "PEC vs the deterministic calibrated inverse at every finite budget")
+        want(f"the mean is ${gs('pec_gain_linvcalib_inf')}$ dB "
+             f"{pci('linvcalib_inf', 2)}, the exact Wilcoxon test rejecting "
+             f"equality at $p={float(pn['pec_pwil_linvcalib_inf']):.3f}$",
+             "PEC vs the calibrated inverse at infinite shots")
+
+        # ---- the two caveats: regularisation, and model error ---------------
+        ill = str(pn["pec_illcond_setting"])
+        chan, _, pw = ill.rpartition("_")
+        want(f"across the ${n('pec_illcond_n')}$ settings with "
+             f"$\\gamma>{n('pec_gamma_wellcond')}$ the Tikhonov term inside the "
+             f"deterministic inverse buys up to "
+             f"${g('pec_illcond_max_gain_db', 1)}$ dB "
+             f"({CHAN.get(chan, chan)} $p={pw}$, "
+             f"$\\gamma={sci('pec_illcond_max_gain_gamma')}$)",
+             "regularisation gain in the ill-conditioned settings")
+        want(f"rate by ${abs(float(pn['pec_mismatch_worst_dq'])):.2f}$ costs "
+             f"${g('pec_mismatch_degradation_db', 1)}$ dB "
+             f"(${g('pec_mismatch_db_matched', 1)}\\to"
+             f"{g('pec_mismatch_db_worst', 1)}$ dB)",
+             "cost of mis-specifying the flip rate")
+        want(f"stays ahead at ${n('pec_mismatch_linv_ahead')}$ of the "
+             f"${n('pec_mismatch_n_dq')}$ assumed rates, by up to "
+             f"${g('pec_mismatch_linv_margin_db', 1)}$ dB",
+             "the deterministic inverse under model mismatch")
+        want(f"mismatched map is ${g('pec_mismatch_floor_median', 2)}$",
+             "residual sector distance of a mismatched PEC map")
+        want(f"in ${n('pec_losses_linvcalib_S256')}/"
+             f"{n('pec_n_linvcalib_S256')}$ settings at every finite budget we "
+             f"tested", "Discussion: PEC is dominated at every finite budget")
+
+
     print(f"  {state['ok']} quoted numbers agree with the data, "
           f"{state['bad']} mismatch(es)")
     return state["ok"], state["bad"]
