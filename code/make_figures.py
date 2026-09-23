@@ -183,9 +183,12 @@ def schematic(ax):
     ax.text(0.02, 1.06, "inference: one forward pass, no folded circuits",
             ha="left", va="bottom", fontsize=5.8, style="italic",
             color="#333333")
-    ax.text(0.50, -0.06, "no noise-model knowledge; $N{+}1$ numbers per phase "
+    # Two wrapped lines: on a single line this note is ~4.2in wide and runs
+    # straight into panel (b); wrapped it stays inside panel (a)'s footprint.
+    ax.text(0.50, -0.06, "no noise-model knowledge; $N{+}1$ numbers per phase\n"
             "instead of $2^N$ outcomes or $4^N$ tomography coefficients",
-            ha="center", va="top", fontsize=5.6, color="#333333")
+            ha="center", va="top", fontsize=5.6, color="#333333",
+            linespacing=1.35)
 
 
 
@@ -234,12 +237,18 @@ def fig1(tag, res, out, dpi):
             f"{exc!r}") from exc
     ncol = 3
     fig = plt.figure(figsize=(DOUBLE if ncol == 3 else 4.7, 2.55))
-    gs = fig.add_gridspec(1, ncol, width_ratios=[2.0] + [1.0] * (ncol - 1),
-                          wspace=0.32)
-    ax0 = fig.add_subplot(gs[0, 0])
+    # Panel (a) is a schematic that owns the left half of the figure while the
+    # (b),(c) data plots share the right half.  Nesting the (b,c) gridspec lets
+    # the a|b seam carry a wider gap than the b|c seam, so the schematic never
+    # crowds the plots; the explicit margins reclaim the dead space the default
+    # left/right = 0.125/0.90 used to leave on both sides of the figure.
+    outer = fig.add_gridspec(1, 2, width_ratios=[1.0, 1.0], wspace=0.178,
+                             left=0.01, right=0.99, top=0.86, bottom=0.16)
+    inner = outer[0, 1].subgridspec(1, ncol - 1, wspace=0.30)
+    ax0 = fig.add_subplot(outer[0, 0])
     schematic(ax0)
     panel(ax0, "a")
-    ax1 = fig.add_subplot(gs[0, 1])
+    ax1 = fig.add_subplot(inner[0, 0])
     if dist is not None:
         m, clean, noisy, mit = dist
         ax1.plot(m, clean, "-o", color="#2ca02c", ms=2.6,
@@ -255,7 +264,7 @@ def fig1(tag, res, out, dpi):
         ax1.set_title(f"$\\phi=0.6$ rad, {setting.replace('_', ' ')}", fontsize=7)
     panel(ax1, "b")
     if ncol == 3:
-        ax2 = fig.add_subplot(gs[0, 2])
+        ax2 = fig.add_subplot(inner[0, 1])
         for key, lab, c, ls in (("fi_clean", "clean $F(\\mathbf{p}_m)$",
                                  "#2ca02c", "-"),
                                 ("fi_noisy", "noisy $F(\\mathbf{y})$",
