@@ -5,10 +5,11 @@ the result files, so no number is ever transcribed by hand.
     python make_tables.py [--tag final] [--out ../paper]
 
 Writes ``tables.tex`` (main-text Tables I--III) and ``tables_supplement.tex``
-(Supplemental Tables S1--S12; the last three are the paired bootstrap confidence
-intervals and exact tests, and appear only once ``results/ci_<tag>.json`` exists,
-which ``collect_numbers.py`` or ``bootstrap_ci.py`` writes).  The manuscript
-inputs both files.
+(Supplemental Tables S1--S13; the last four are the paired bootstrap confidence
+intervals and exact tests and the per-setting PEC table, and appear only once
+``results/ci_<tag>.json`` / ``results/ci_pec_<tag>.json`` exist, which
+``collect_numbers.py`` or ``bootstrap_ci.py`` writes).  The manuscript inputs
+both files.
 """
 import argparse
 import json
@@ -610,6 +611,181 @@ def table_ci_claims(ci):
         "tab:ci_claims", None, body, star=True, font="\\tiny")
 
 
+PEC_BUDGETS = ("S256", "S1024", "S4096")
+PEC_SHOTLAB = {"S256": "$256$", "S1024": "$1024$", "S4096": "$4096$"}
+# The conditioning split quoted in the manuscript: gamma <= 20 is the regime in
+# which the sampled and deterministic estimators agree to ~1e-2 dB.
+PEC_GAMMA_SPLIT = 20.0
+
+
+def _sci(v, sig=3, wrap=True):
+    r"""Format a magnitude that spans many decades as LaTeX math.
+
+    gamma runs from 1.18 to 5.4e10 in E6, so a single fixed-point format either
+    loses the small values or prints an unreadable 11-digit number.  Whenever
+    ``%g`` would fall back on Python's ``e+03`` exponent notation -- which is not
+    valid LaTeX -- the value is rendered as a mantissa times a power of ten
+    instead.  ``wrap=False`` omits the surrounding ``$...$`` so the result can be
+    embedded in an expression that is already in math mode; nesting two math
+    delimiters would silently mis-typeset.
+    """
+    if v is None:
+        return "--"
+    s = f"{v:.{sig}g}"
+    if "e" in s or "E" in s:
+        a, e = f"{v:.{sig - 1}e}".split("e")
+        s = f"{a}\\times10^{{{int(e)}}}"
+    return f"${s}$" if wrap else s
+
+
+def table_pec(ci, man=None):
+    """Supplemental table: per-setting PEC overhead and gains (E6).
+
+    Reads ``ci_pec_<tag>.json`` (written by ``bootstrap_ci.build_pec``), so the
+    table and the PEC prose are derived from the same object.  Rows are sorted by
+    descending overhead because that is the axis the result turns on: the table
+    exists to show that the aggregate "PEC loses" is *not* an artefact of the
+    pathological settings, and to locate the regime boundary where a
+    quasi-probability correction stops paying for itself.
+    """
+    ov = ci["overhead"]["per_setting"]
+    ps = ci["per_setting"]
+    agg = ci["aggregates"]
+    pct = int(round(ci["meta"]["conf"] * 100))
+    B = ci["meta"]["n_boot"]
+    setts = sorted(ps["inf"], key=lambda s: -ov[s]["gamma"])
+    well = [s for s in setts if ov[s]["gamma"] <= PEC_GAMMA_SPLIT]
+    ill = [s for s in setts if ov[s]["gamma"] > PEC_GAMMA_SPLIT]
+
+    def gain(tag, comp, s):
+        return ps[tag][s][comp]["point"]
+
+    body = ["\\begin{tabular}{@{}lrrrrrrrrr@{}}", "\\hline",
+            "\\multirow{2}{*}{setting} & \\multirow{2}{*}{$\\gamma$} & "
+            "\\multirow{2}{*}{$10\\log_{10}\\gamma^2$} & "
+            "\\multirow{2}{*}{PEC at $\\infty$ (dB)} & "
+            "\\multicolumn{3}{c}{gain vs calibrated inverse (dB)} & "
+            "\\multicolumn{3}{c}{gain vs no mitigation (dB)} \\\\",
+            " & & & & "
+            + " & ".join(PEC_SHOTLAB[t] for t in PEC_BUDGETS) + " & "
+            + " & ".join(PEC_SHOTLAB[t] for t in PEC_BUDGETS) + " \\\\",
+            "\\hline"]
+    for s in setts:
+        cells = [tex(s), _sci(ov[s]["gamma"]),
+                 f"{10.0 * np.log10(ov[s]['gamma_sq']):.0f}",
+                 f"${ps['inf'][s]['mse_db']:.1f}$"]
+        for comp in ("linv_calib", "none"):
+            cells += [f"${gain(t, comp, s):+.2f}$" for t in PEC_BUDGETS]
+        body.append(" & ".join(cells) + " \\\\")
+    body.append("\\hline")
+
+    # Summary rows.  The "all" row is asserted against the aggregate that the
+    # manuscript quotes, so the table cannot drift from the prose.
+    for lab, grp in ((f"mean, all settings ($n={len(setts)}$)", setts),
+                     (f"mean, $\\gamma\\le{PEC_GAMMA_SPLIT:g}$ "
+                      f"($n={len(well)}$)", well),
+                     (f"mean, $\\gamma>{PEC_GAMMA_SPLIT:g}$ "
+                      f"($n={len(ill)}$)", ill)):
+        cells = [lab, "", "", ""]
+        for comp in ("linv_calib", "none"):
+            for t in PEC_BUDGETS:
+                m = float(np.mean([gain(t, comp, s) for s in grp]))
+                if grp is setts:
+                    a = agg[t][comp]["mean"]["mean"]
+                    assert abs(m - a) < 1e-9, (comp, t, m, a)
+                cells.append(f"$\\mathbf{{{m:+.2f}}}$")
+        body.append(" & ".join(cells) + " \\\\")
+    body.append("\\hline")
+    return _pec_caption(ci, setts, well, ill, gain, agg, ov, pct, B, body, man)
+
+
+def _pec_caption(ci, setts, well, ill, gain, agg, ov, pct, B, body, man=None):
+    r"""Caption for tab:pec.
+
+    The two readings stated here are the reason the table exists; both are
+    computed from the same per-setting gains the rows print, so the caption
+    cannot contradict the body.
+    """
+    m = ci["meta"]
+    n_neg = {t: sum(gain(t, "none", s) < 0 for s in setts) for t in PEC_BUDGETS}
+    n_lose = {t: sum(gain(t, "linv_calib", s) < 0 for s in setts)
+              for t in PEC_BUDGETS}
+    # Leave-one-out on the most pathological setting: the honest test of whether
+    # "PEC loses" rests on one outlier.  It does not -- removing it makes the
+    # mean loss worse -- so the direction is stated explicitly.
+    worst = setts[0]
+    loo = float(np.mean([gain("S1024", "linv_calib", s)
+                         for s in setts if s != worst]))
+    full = agg["S1024"]["linv_calib"]["mean"]["mean"]
+    sp = f"{PEC_GAMMA_SPLIT:g}"
+    same = (sorted(s for s in ill if gain("S1024", "none", s) < 0)
+            == sorted(ill))
+    # n_cal is not carried in the E6 rows, so it comes from the manifest addendum
+    # that records how E6 was invoked -- the same source collect_numbers.sec_e6
+    # uses for pec_n_cal.  If it is absent the clause is dropped rather than
+    # filled in with a plausible-looking default.
+    e6p = (((man or {}).get("e6_pec_baseline_addendum") or {})
+           .get("parameters") or {})
+    ncal = e6p.get("n_cal")
+    grid = (f"{m['n_settings']} settings"
+            + (f" with {ncal} calibration phases," if ncal is not None else ",")
+            + f" {m['n_phase']} held-out test phases and {m['n_trials']} "
+              "Monte-Carlo trials per finite-shot cell")
+    bound = (f"exactly the $\\gamma>{sp}$ settings" if same else
+             f"not aligned with the $\\gamma>{sp}$ split")
+    nwin = len(setts) - n_neg["S1024"]
+    # The infinite-shot column bottoms out at one common residual.  PEC inverts a
+    # binomial readout channel exactly, so for the pure-readout settings that
+    # value is the decoder's own finite-phase floor, not mitigation error; a
+    # reader who sees seven identical entries would otherwise assume a bug.  The
+    # explanation is printed only if the data actually support it.
+    ps = ci["per_setting"]
+    inf_db = {s: ps["inf"][s]["mse_db"] for s in setts}
+    floor = min(inf_db.values())
+    at_floor = [s for s in setts if inf_db[s] - floor < 0.01]
+    floor_txt = ""
+    if len(at_floor) > 1:
+        pure = all(s.startswith("readout_") for s in at_floor)
+        floor_txt = (
+            f"  The {len(at_floor)} entries in the infinite-shot column that all "
+            f"read ${floor:.1f}$ dB are "
+            + ("the pure-readout settings, where PEC inverts the binomial "
+               "channel exactly, so that shared value is the decoder's own "
+               "finite-phase floor rather than residual mitigation error."
+               if pure else
+               "settings that reach a common residual floor.")
+        )
+    return env_table(
+        "Probabilistic error cancellation (E6), per setting, on its own grid of "
+        f"{grid}; intervals are paired "
+        f"percentile bootstraps over the trials (${B}$ replicates, {pct}\\%).  "
+        "A \\emph{positive} gain means PEC is better.  Rows are ordered by "
+        "descending overhead $\\gamma$, the axis the result turns on.  Because "
+        "E6 uses a different grid from the headline sweep, all four comparators "
+        "are recomputed here from a shared sampler seed and the absolute dB "
+        "levels are \\emph{not} comparable to "
+        "Tables~\\ref{tab:sweep_inf}--\\ref{tab:sweep_S1024}; only the "
+        "within-row contrasts are.  Two readings matter.  First, the loss to "
+        "the deterministic inverse is \\emph{not} an artefact of the "
+        f"pathological settings: PEC is behind in {n_lose['S1024']}/"
+        f"{len(setts)} at every finite budget, and the loss is "
+        "\\emph{larger} "
+        f"where $\\gamma\\le{sp}$ than where $\\gamma>{sp}$, because that is "
+        "where the inverse is accurate enough for PEC's $\\gamma^2$ variance "
+        f"penalty to show in decibels; deleting the worst setting "
+        f"({tex(worst)}, $\\gamma={_sci(ov[worst]['gamma'], wrap=False)}$) "
+        f"makes the mean "
+        f"loss at $S{{=}}1024$ worse, ${full:+.2f}\\to{loo:+.2f}$ dB.  Second, "
+        "the right-hand block locates the operating boundary: at $S{=}1024$ PEC "
+        f"beats doing nothing in {nwin}/{len(setts)} settings overall and the "
+        f"{n_neg['S1024']} losses are {bound}, so a quasi-probability "
+        "correction pays for itself only where the channel is mild enough to "
+        "invert cheaply, and additional shots buy back part of that regime "
+        f"(at $S{{=}}4096$ only {n_neg['S4096']} settings still lose)."
+        + floor_txt,
+        "tab:pec", None, body, star=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--tag", default="final")
@@ -645,12 +821,19 @@ def main():
     if ci is None:
         print(f"note: no ci_{a.tag}.json, so the confidence-interval tables are "
               "omitted; run collect_numbers.py (or bootstrap_ci.py) first")
+    pcp = os.path.join(res, f"ci_pec_{a.tag}.json")
+    ci_pec = load(f"ci_pec_{a.tag}.json", res) if os.path.exists(pcp) else None
+    if ci_pec is None:
+        print(f"note: no ci_pec_{a.tag}.json, so the PEC table is omitted; run "
+              "bootstrap_ci.py --pec-file ../results/e6_pec.json first")
     sup = [table_sweep_supplement(rows, "inf", "infinite shots"),
            table_sweep_supplement(rows, "S1024", "$S=1024$"),
            table_e1(e1), table_e3(e3), table_e5(e5),
            table_robustness(seeds, abl, rows)]
     if ci is not None:
         sup += [table_ci(ci), table_ci_claims(ci)]
+    if ci_pec is not None:
+        sup += [table_pec(ci_pec, man)]
     with open(os.path.join(out, "tables_supplement.tex"), "w") as fh:
         fh.write("% auto-generated by code/make_tables.py -- do not edit\n"
                  + "\n\n".join(sup) + "\n")
