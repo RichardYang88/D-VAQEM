@@ -44,6 +44,15 @@ the journal's Wiley LaTeX zip there before running the script.
 `tables*.tex`, `references.bib`, `toc_entry.tex` and `../figures/fig*.pdf`; the
 generated `paper/AQT_submission/` is ignored as well and can be rebuilt at will.
 
+One catch the script handles for you: `USG.cls` does `\usepackage{lettersp}`
+while the publisher's zip ships only `LETTERSP.STY`, which resolves on the
+case-insensitive file system the sample log was produced on (MiKTeX on Windows)
+but not on Linux, so the script writes a lowercase copy into the tree.  A full
+TeX Live is still required — besides the copied files the class loads `boites`,
+`soul`, `dashrule`, `changepage`, `floatpag`, `cuted`, `dblfloatfix`, `ulem`,
+`enumerate`, `multicol`, `calc`, `xcolor`, `hyperref` and `babel`; Overleaf has
+all of them, a minimal local install needs `texlive-latex-extra`.
+
 `manuscript.tex` inputs `tables.tex` and `tables_supplement.tex` and locates the
 figures through `\graphicspath{{./}{../figures/}{figures/}}`, so it builds both
 in the repository layout and from the flat submission tree.  The generated

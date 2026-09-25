@@ -23,6 +23,16 @@ cp "$TPL/USG.cls" "$OUT/"
 for f in "$TPL"/*.sty "$TPL"/*.STY "$TPL"/*.bst; do
     [ -e "$f" ] && cp "$f" "$OUT/"
 done
+
+# USG.cls asks for \usepackage{lettersp}, but the publisher's zip ships only
+# LETTERSP.STY.  That resolves on the case-insensitive file system the sample
+# was compiled on (its log says MiKTeX on Windows) and fails on Linux, i.e. on
+# Overleaf, so provide the lowercase name the class actually requests.
+if [ -f "$OUT/LETTERSP.STY" ] && [ ! -f "$OUT/lettersp.sty" ]; then
+    cp "$OUT/LETTERSP.STY" "$OUT/lettersp.sty"
+    echo "note: wrote lettersp.sty as a lowercase copy of LETTERSP.STY"
+    echo "      (USG.cls requests the lowercase name and Linux is case-sensitive)"
+fi
 cp -r "$TPL/Fonts" "$OUT/"
 cp -r "$TPL/images" "$OUT/"
 
@@ -42,3 +52,6 @@ echo "build with:"
 echo "  cd $OUT && pdflatex manuscript && bibtex manuscript \\"
 echo "             && pdflatex manuscript && pdflatex manuscript"
 echo "the ToC entry (text + 55x50 mm graphic) is toc_entry.tex in the same tree"
+echo "a full TeX Live is still needed: besides the files copied here, USG.cls loads"
+echo "      boites, soul, dashrule, changepage, floatpag, cuted, dblfloatfix, ulem,"
+echo "      enumerate, multicol, calc, xcolor, hyperref, babel and the STIX fonts"
