@@ -270,7 +270,7 @@ $21$ held-out test phases are resampled instead.  The pairing above is preserved
 inside every replicate, so an interval for a difference is an interval for a
 \emph{paired} difference and not for two independent means.  Aggregates over the
 sixteen noise settings resample the settings, since those rather than the test
-phases are the population such a mean generalises over.  Alongside each interval
+phases are the population such a mean generalizes over.  Alongside each interval
 we report the exact sign test and the exact Wilcoxon signed-rank test over the
 sixteen settings; the Wilcoxon null distribution is enumerated by a subset-sum
 recursion over the tied ranks rather than replaced by a normal approximation.
@@ -306,7 +306,7 @@ measurement and commutes with the aggregation.
 \end{theorem}
 
 \begin{proof}
-By the chain rule for the Fisher information of a factorised model
+By the chain rule for the Fisher information of a factorized model
 $p(x|\phi)=p_m(m|\phi)\,p(x|m,\phi)$,
 $F(p)=F(p_m)+\mathbb E_{m}\big[F(p(\cdot|m,\cdot))\big]$; the second term
 vanishes when the conditional carries no $\phi$-dependence
@@ -472,7 +472,10 @@ shrinks the map toward the low-variance regime at small $S$.  Proposition
 \ref{prop:delta} also exposes a structural weakness of ZNE that our numerics
 confirm: Richardson extrapolation on folds $(1,3,5)$ has $\sum_f c_f^2=5.22$
 and the quadratic fit on $(1,3,5,7,9)$ has $2.12$, whereas a contractive
-learned map carries no such amplification.
+learned map carries no such amplification.  Appendix~\ref{app:proofs} derives
+both variance formulas and, in \S\ref{app:zne-blind}, the exact readout
+blindness of unitary folding that makes \dvaqem{} the remedy for panel
+\textbf{d} of Figure~\ref{fig:sweep}.
 
 \subsection{Fitting, selection and what is held out}
 \label{subsec:selection}
@@ -900,7 +903,7 @@ quasi-probability correction nor the irreducible bias of a mis-specified one.
 \label{subsec:robust}
 
 Repeating the entire headline sweep with three independent random seeds (map
-initialisation, holdout sampling and Monte-Carlo trials) selects the identical
+initialization, holdout sampling and Monte-Carlo trials) selects the identical
 variant in all $16$ settings every time; the per-setting spread of the deployed
 MSE is $0.00$ dB at infinite shots and at most $0.93$ dB (mean $0.46$ dB) at
 $S=1024$, i.e.\ of the order of the Monte-Carlo error bar itself

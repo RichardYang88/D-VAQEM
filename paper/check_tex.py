@@ -61,7 +61,9 @@ print("lines:", tex.count("\n"))
 # 2. cross-references
 # ----------------------------------------------------------------------
 labels = set(re.findall(r"\\label\{([^}]+)\}", tex))
-refs = set(re.findall(r"\\ref\{([^}]+)\}", tex))
+# \ref, \eqref and \cref/\Cref all count: a bare "\\ref{" pattern misses
+# \eqref, which made every equation cited only that way look unreferenced
+refs = set(re.findall(r"\\(?:eq|[cC])?ref\{([^}]+)\}", tex))
 undef = sorted(refs - labels)
 unused = sorted(labels - refs)
 print(f"\ncross-references: {len(labels)} labels, {len(refs)} referenced")
