@@ -73,45 +73,33 @@ Information Science and Technology, }\orgname{Southwest Jiaotong University,
 Grant/Award Number: 2021YFA0718803; National Natural Science Foundation of
 China}
 
-\abstract[ABSTRACT]{
-Variational quantum sensors are calibrated on noiseless or low-noise data and
-then deployed on hardware whose noise biases the very measurement statistics
-the learned decoder inverts.  We introduce \dvaqem{}, a variational quantum
-error mitigation scheme that acts on the \emph{distribution} of measurement
-outcomes rather than on expectation values: a small parametric map, trained
-solely on calibration data at known reference phases, pushes the noisy outcome
-distribution back towards the noiseless one before a frozen, already certified
-decoder reads out the estimate.  The scheme is made possible by our first
-result, that for collective-spin probes the population-imbalance statistic
-$m=\#0-\#1$ is an \emph{exactly sufficient} statistic for the phase: the
-reduction from $2^N$ outcomes to $N+1$ probabilities costs zero Fisher
-information (verified to machine precision, and to $\le 4.6\times10^{-3}$ dB of
-Cram\'er--Rao penalty under gate noise), so mitigation can be learned in an
-$(N+1)$-dimensional space with $(N+1)^2$ parameters instead of a
-$4^N$-dimensional one.  Our second contribution is a shot-aware training
-objective that adds the exact delta-method variance of the decoded estimate to
-the usual distribution-matching loss, making the mitigation map aware of the
-operating shot budget without any Monte-Carlo sampling.  On an eight-qubit
-variational interferometer subjected to depolarizing, dephasing,
-amplitude-damping and readout noise at sixteen strengths, \dvaqem{} reduces the
-mean squared phase error by $33.2$ dB (infinite shots, 95\% paired bootstrap CI
-$[27.8,38.0]$) and by $10.7$--$20.5$ dB
-at $256$--$4096$ shots, closing $65$--$76\,\%$ of the decibel gap to the
-noiseless estimator, outperforming zero-noise extrapolation in all sixteen
-settings (by $25.0$ dB on average, with every per-setting paired interval
-excluding zero and an exact sign test giving $p=3.1\times10^{-5}$) and matching
-noise-aware decoder retraining
-at finite shots (exact Wilcoxon $p\ge0.10$) with two orders of magnitude fewer
-trainable parameters and
-without touching the certified decoder.  The mitigated estimator operates
-within $0.6$ dB of the Cram\'er--Rao bound of the noisy data, the approach
-scales to ten qubits where the calibration data are eleven numbers per phase
-against $10^6$ for process tomography, and five calibration phases already buy
-$25$ dB of the reduction.
-}
-
+% the checklist fixes the file order as Title - Authors - Affiliations -
+% Keywords - Abstract - Main Text, caps the abstract at 200 words (this one is
+% 190) and the keyword list at ten entries (six here), and asks for panels to be
+% labeled with lower-case bold letters in parentheses (make_figures.py does).
 \keywords{Quantum error mitigation | quantum metrology | phase estimation |
 variational quantum algorithms | Fisher information | Cram\'er--Rao bound}
+
+\abstract[ABSTRACT]{
+Variational quantum sensors are calibrated on low-noise data but deployed on
+hardware whose noise biases the very statistics the learned decoder inverts.  We
+introduce \dvaqem{}, a variational quantum error mitigation scheme that acts on
+the \emph{distribution} of measurement outcomes rather than on expectation
+values: a small parametric map, trained only on calibration data at known
+reference phases, pushes the noisy outcome distribution back toward the
+noiseless one before a frozen, already certified decoder reads out the estimate.
+It exploits an exactly sufficient statistic: for collective-spin probes the
+population imbalance $m=\#0-\#1$ carries all phase information, so reducing
+$2^N$ outcomes to $N+1$ probabilities costs no Fisher information.  A shot-aware
+objective adds the exact delta-method variance of the decoded estimate to the
+distribution-matching loss.  On an eight-qubit variational interferometer with
+depolarizing, dephasing, amplitude-damping and readout noise at sixteen
+strengths, \dvaqem{} lowers the mean squared phase error by $33.2$~dB at
+infinite shots (95\% paired bootstrap CI $[27.8,38.0]$) and by $10.7$--$20.5$~dB
+at $256$--$4096$ shots, beating zero-noise extrapolation in every setting and
+matching noise-aware decoder retraining with two orders of magnitude fewer
+parameters, within $0.6$~dB of the Cram\'er--Rao bound of the noisy data.
+}
 
 \maketitle
 
@@ -276,7 +264,7 @@ replicates, and the resampling unit is matched to the way each number is
 produced.  At a finite shot budget the $41$ Monte-Carlo trials are resampled and
 the decibel average is recomputed inside every replicate, which reproduces
 exactly the $\mathrm{MSE}_{\rm dB}$ convention used throughout---the mean of
-per-trial decibels, not the decibel of the mean---so each interval is centred on
+per-trial decibels, not the decibel of the mean---so each interval is centered on
 the number we quote.  At infinite shots the evaluation is deterministic and the
 $21$ held-out test phases are resampled instead.  The pairing above is preserved
 inside every replicate, so an interval for a difference is an interval for a
@@ -344,7 +332,7 @@ $\Delta_{\rm CRB}=10\log_{10}\big[F(p_{\rm full})/F(p_m)\big]$, stays below
 $4.6\times10^{-3}$ dB for depolarizing rates up to $p=0.02$ per gate
 (Figure~\ref{fig:sufficiency}b), and a grid-refinement control
 ($n_\phi=21,41,81$) shows the residual to be a genuine information loss of the
-noisy model rather than a finite-difference artefact (it is stable at
+noisy model rather than a finite-difference artifact (it is stable at
 $1.8\times10^{-3}$--$1.9\times10^{-3}$ dB).  In metrological terms: the
 $(N+1)$-dimensional sector family \emph{is} the estimation problem, and
 everything we do next happens in that space.
@@ -480,7 +468,7 @@ budget,
   \label{eq:lse}
 \end{equation}
 which reduces to the bias-only VAQEM cost as $S\to\infty$ and automatically
-shrinks the map towards the low-variance regime at small $S$.  Proposition
+shrinks the map toward the low-variance regime at small $S$.  Proposition
 \ref{prop:delta} also exposes a structural weakness of ZNE that our numerics
 confirm: Richardson extrapolation on folds $(1,3,5)$ has $\sum_f c_f^2=5.22$
 and the quadratic fit on $(1,3,5,7,9)$ has $2.12$, whereas a contractive
@@ -614,7 +602,7 @@ bit-flip model.
 First, \dvaqem{} beats the best of the three ZNE variants in all sixteen
 settings, by $25.0$ dB on average (minimum $4.0$ dB).  The claim survives
 per-setting testing rather than resting on an average: the paired interval
-excludes zero in all sixteen cases, and the least favourable setting on its own
+excludes zero in all sixteen cases, and the least favorable setting on its own
 (dephasing $p=0.05$) still gives $+4.0$ dB $[+2.1,+8.4]$, one-sided
 $p=5.0\times10^{-5}$ (Table~\ref{tab:ci_zne}).  It also survives discarding the
 a-posteriori choice of extrapolation variant.  Taking each ZNE variant instead
@@ -686,7 +674,7 @@ special case that is exactly optimal where its model holds and unlimited shots
 are available; \dvaqem{} matches it there, and is the only one of the two that
 survives a finite data set and a channel outside the flip family.
 
-At finite shots the picture changes in \dvaqem{}'s favour relative to the
+At finite shots the picture changes in \dvaqem{}'s favor relative to the
 floor: the mean gain over the unmitigated estimator is $10.7$, $15.4$ and
 $20.5$ dB at $S=256,1024,4096$, and the residual distance to the
 \emph{noiseless} shot-noise floor is only $5.7$, $6.6$ and $6.4$ dB, i.e.\
@@ -883,7 +871,7 @@ everywhere---ahead in $0/20$ settings at each of $S=256$, $1024$ and $4096$, by
 $-4.6$ dB $[-6.3,-3.1]$, $-5.0$ dB $[-6.7,-3.5]$ and $-5.6$ dB $[-7.4,-3.9]$,
 with exact sign and Wilcoxon $p\le1.9\times10^{-6}$ in all three---and even at
 infinite shots the mean is $-0.9$ dB $[-2.09,-0.04]$, the exact Wilcoxon test
-rejecting equality at $p=0.030$.  Cancelling errors probabilistically is not
+rejecting equality at $p=0.030$.  canceling errors probabilistically is not
 \emph{wrong}: it is unbiased, and it is the right instrument when shots are
 free.  It is simply dominated, because it pays $\gamma^2$ for an expectation the
 matrix inverse delivers exactly.  Supplemental Table~\ref{tab:pec} tabulates

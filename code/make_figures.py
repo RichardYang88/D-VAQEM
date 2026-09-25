@@ -1,7 +1,7 @@
 """
 make_figures.py -- build every figure of the D-VAQEM paper from results/.
 
-The script reads only the artefacts written by ``run_experiments.py``
+The script reads only the artifacts written by ``run_experiments.py``
 (``results/*.json``, ``results/*.npz``), so figures are reproducible without
 re-running any simulation:
 
@@ -116,18 +116,30 @@ def split_settings(settings):
 
 
 def panel(ax, letter, title=None):
-    ax.text(-0.22, 1.06, letter, transform=ax.transAxes, fontsize=9.5,
+    # the checklist wants panels labeled with lower-case bold letters in
+    # parentheses, e.g. "(a)", not a bare letter
+    ax.text(-0.22, 1.06, f"({letter})", transform=ax.transAxes, fontsize=9.5,
             weight="bold", va="bottom", ha="right")
     if title:
         ax.set_title(title)
 
 
-def save(fig, name, out, dpi):
+def save(fig, name, out, dpi, bbox="tight"):
+    """Write one figure as PDF + PNG, then close it.
+
+    ``bbox`` is applied through ``rc_context`` rather than passed as
+    ``bbox_inches``: the module sets ``savefig.bbox = "tight"`` globally and
+    matplotlib falls back to that rcParam whenever ``bbox_inches`` is None, so a
+    figure whose page size is contractual has to switch the crop off this way.
+    ``bbox=None`` means "no crop", which the journal's ToC graphic needs in
+    order to be exactly 55 mm x 50 mm.
+    """
     os.makedirs(out, exist_ok=True)
-    for ext in ("pdf", "png"):
-        p = os.path.join(out, f"{name}.{ext}")
-        fig.savefig(p, dpi=dpi)
-        print(f"  -> {p}")
+    with plt.rc_context({"savefig.bbox": bbox or "standard"}):
+        for ext in ("pdf", "png"):
+            p = os.path.join(out, f"{name}.{ext}")
+            fig.savefig(p, dpi=dpi)
+            print(f"  -> {p}")
     plt.close(fig)
 
 
@@ -712,7 +724,9 @@ def fig_toc(tag, res, out, dpi):
               labelspacing=0.25, borderpad=0.1)
     ax.grid(axis="y", lw=0.3, color="#dddddd")
     fig.subplots_adjust(left=0.21, right=0.98, top=0.97, bottom=0.19)
-    save(fig, "fig_toc", out, dpi)
+    # the checklist fixes this graphic at 55 mm x 50 mm, so it is the one figure
+    # saved without the tight bbox: the PDF page is exactly TOC_W x TOC_H
+    save(fig, "fig_toc", out, dpi, bbox=None)
 
 
 # ======================================================================

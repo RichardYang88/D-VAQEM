@@ -676,7 +676,7 @@ def table_pec(ci, man=None):
     Reads ``ci_pec_<tag>.json`` (written by ``bootstrap_ci.build_pec``), so the
     table and the PEC prose are derived from the same object.  Rows are sorted by
     descending overhead because that is the axis the result turns on: the table
-    exists to show that the aggregate "PEC loses" is *not* an artefact of the
+    exists to show that the aggregate "PEC loses" is *not* an artifact of the
     pathological settings, and to locate the regime boundary where a
     quasi-probability correction stops paying for itself.
     """
@@ -798,7 +798,7 @@ def _pec_caption(ci, setts, well, ill, gain, agg, ov, pct, B, body, man=None):
         "levels are \\emph{not} comparable to "
         "Tables~\\ref{tab:sweep_inf}--\\ref{tab:sweep_S1024}; only the "
         "within-row contrasts are.  Two readings matter.  First, the loss to "
-        "the deterministic inverse is \\emph{not} an artefact of the "
+        "the deterministic inverse is \\emph{not} an artifact of the "
         f"pathological settings: PEC is behind in {n_lose['S1024']}/"
         f"{len(setts)} at every finite budget, and the loss is "
         "\\emph{larger} "

@@ -126,9 +126,9 @@ def check_numbers(text, pn):
     want(f"${g('ci_vs_zne_inf_lf_point', 1):+}$ dB "
          f"$[{g('ci_vs_zne_inf_lf_ci_lo', 1):+},"
          f"{g('ci_vs_zne_inf_lf_ci_hi', 1):+}]$",
-         "least-favourable per-setting gain vs ZNE")
+         "least-favorable per-setting gain vs ZNE")
     want(latex_p(pn["ci_vs_zne_inf_lf_p_one_sided"]),
-         "one-sided bootstrap p, least-favourable setting")
+         "one-sided bootstrap p, least-favorable setting")
     for zm, quoted in (("zne_rich", "Richardson"), ("zne_poly1", "linear fit"),
                        ("zne_poly2", "quadratic fit")):
         want(f"${g(f'ci_vs_{zm}_inf_mean', 1):+}$ dB "
@@ -354,7 +354,7 @@ def check_numbers(text, pn):
              f"equality at $p={float(pn['pec_pwil_linvcalib_inf']):.3f}$",
              "PEC vs the calibrated inverse at infinite shots")
 
-        # ---- the two caveats: regularisation, and model error ---------------
+        # ---- the two caveats: regularization, and model error ---------------
         ill = str(pn["pec_illcond_setting"])
         chan, _, pw = ill.rpartition("_")
         want(f"across the ${n('pec_illcond_n')}$ settings with "

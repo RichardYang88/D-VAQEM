@@ -74,9 +74,30 @@ must be compiled as part of `manuscript.tex`.
   files, so the prose cannot drift while it is edited.)
 * **Back matter in the checklist's order**: Author Contributions →
   Acknowledgments → Conflicts of Interest → Data Availability Statement →
-  references → Supporting Information, each as a `\bmsubsection*`.  The
-  manuscript sets no `\bibliographystyle`: the `ASNA` option of `USG.cls`
-  supplies the Wiley Chicago numbered style.
+  references → Supporting Information, each a `\bmsubsection*`, word-for-word
+  the sequence used by the publisher's sample `Optimal-Design-layout.tex`.
+* **Front matter order and limits.**  The checklist fixes the file order as
+  Title – Authors – Affiliations – Keywords – Abstract – Main Text, caps the
+  abstract at 200 words (190 now) and the keyword list at ten entries (six now,
+  pipe-separated exactly as in the publisher's sample).
+* **Panels are labeled `(a)`, `(b)`, …** in lower-case bold type, drawn by the
+  single `panel()` helper in `make_figures.py`.  Legends stay inside the floats
+  instead of being collected at the end of the file, which is what the
+  publisher's own LaTeX sample does (that instruction is for the Word template).
+* **Table notes live in the caption.**  The checklist wants lowercase letters
+  with a closing parenthesis for table footnotes; the generated tables have no
+  footnote rows at all — every qualifier is a sentence inside the caption — so
+  there is nothing to renumber.
+* **Citations are inline square brackets** numbered in order of citation: the
+  `ASNA` option loads `NJDnatbib` with `\setcitestyle{numbers,square}` and
+  selects `wileyNJD-Chicago.bst`, so `\cite` needs no manual formatting and the
+  manuscript sets no `\bibliographystyle`.
+* **Appendices stay in the article file.**  The four appendices (proofs,
+  simulator validation, ablation, ZNE in the blind limit) are typeset in the
+  same two-column grid as the body — `USG.cls` offers no `\onecolumngrid`, and
+  every display equation is short enough for one column — and they precede the
+  back matter, so the checklist's required blocks stay contiguous at the end of
+  the file and the Supplemental tables follow the Supporting Information note.
 * **Figures are declared where they are first cited** and the preamble relaxes
   `\topfraction`/`\dbltopfraction` and raises `topnumber`/`totalnumber`, so wide
   floats are not flushed to the end of the document; `\clearpage` before the
@@ -135,6 +156,16 @@ including the independent PennyLane density-matrix comparison) and
 `revtex4-2` macro survives in the file.  The overfull-box check still has to
 happen on Overleaf.
 
+American spelling is enforced in every *paper-facing* file — `manuscript.tex`,
+the generated `tables*.tex`, the generated figure labels and `toc_entry.tex` —
+so `artefact`, `centred`, `favourable`, `Cancelling`, `towards` and
+`depolarising` no longer appear in anything a reader sees.  They do survive
+inside `collect_numbers.py` / `bootstrap_ci.py` (the `least_favourable_*` JSON
+keys and the prose of the archived `results/paper_numbers.md` digest), which are
+deliberately left untouched so the archived artifacts stay byte-identical to the
+digest that `check_tex.py` audits.  Panel labels, bracketed units and the ToC
+page size are generated, not hand-set.
+
 ## Status / TODO before submission
 
 * **Author metadata**: add each author's ORCID ID and confirm the initials, the
@@ -154,6 +185,14 @@ happen on Overleaf.
 * **Compile on Overleaf** from the `make_submission.sh` tree and check the page
   breaks, the two-column float placement and any overfull boxes.
 * **Table-of-Contents entry**: compile `toc_entry.tex` and upload the one-page
-  PDF; the graphic must be 55 mm × 50 mm and the text 50–60 words (58 now).
-* **Author contributions**: the current split (conception shared, implementation
-  and analysis by Y.-C. W.) is plausible but must be confirmed by the authors.
+  PDF.  `figures/fig_toc.pdf` is the one figure saved without the tight crop, so
+  its page measures exactly 55.00 mm × 50.00 mm (`pdfinfo`), and the text is 58
+  words against the required 50–60.
+* **Supporting Information as its own file**: the checklist asks for the
+  supporting text and graphics in a single separate file, so at submission the
+  Supplemental tables (S1–S13, currently appended to `manuscript.tex` after the
+  Supporting Information note so that reviewers see one document) should be
+  split out into their own SI PDF.
+* **Author contributions**: the current split (conception by Q. Y. and L. W.,
+  implementation and analysis by Q. Y., writing by all authors) is plausible but
+  must be confirmed, and X. F.'s specific role should be stated.
