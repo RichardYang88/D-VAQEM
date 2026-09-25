@@ -28,5 +28,12 @@ paper/*.bbl
 paper/*.blg
 paper/*.synctex.gz
 
+# 出版社模板下载（Wiley USG.cls + 样式 + STIX 字体，约 24 MB）：
+# 把期刊的 LaTeX zip 解压到 LaTeX-template/，见 paper/README.md
+LaTeX-template/
+
+# make_submission.sh 生成的投稿目录（可随时重建）
+paper/AQT_submission/
+
 # 大模型权重（按需，若 models/ 很大建议忽略或走 Git LFS）
 # models/

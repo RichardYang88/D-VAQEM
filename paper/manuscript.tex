@@ -1,27 +1,17 @@
-\documentclass[preprint,linenumbers,groupedaddress,amsmath,amssymb,aps,prresearch]{revtex4-2}
+% Manuscript formatted for Advanced Quantum Technologies (Wiley) with the
+% publisher's USG class.  The reference layout is
+% LaTeX-template/Optimal-Design-layout.tex and the pre-submission requirements
+% are LaTeX-template/manuscript-preparation-checklist.pdf; both are followed
+% here (two-column layout, numbered square-bracket citations via the ASNA
+% reference style, booktabs tables, no footnotes, American spelling).
+\documentclass[ASNA,twocolumn]{USG}
 
-\usepackage{graphicx}
-\usepackage{amsmath,amssymb}
+% --- packages -------------------------------------------------------------
+% USG.cls already provides graphicx, xcolor, url, amsmath, amsthm, amssymb,
+% amsbsy, booktabs, multirow, tabularx, tcolorbox, hyperref, subfig, cuted,
+% float and dblfloatfix; only what it does not load is requested here.
 \usepackage{bm}
-\usepackage{multirow}
-\usepackage{mathrsfs}
-\usepackage[title]{appendix}
-\usepackage{xcolor}
-\usepackage{booktabs}
-\usepackage{algorithm}
-\usepackage{algorithmicx}
-\usepackage{algpseudocode}
-\usepackage[most]{tcolorbox}
 \graphicspath{{./}{../figures/}{figures/}}
-\usepackage{url}
-
-\newcommand{\swjtuaffil}{%
-  Information Quantum Technology Laboratory, School of Information Science and Technology, \\
-  Southwest Jiaotong University, Chengdu 610031, Sichuan, China
-}
-\newcommand{\companyaffil}{%
-  Sichuan Zhitu Linghai Intelligent Technology Co., Ltd., Chengdu 610213, Sichuan, China
-}
 
 % shorthand used throughout
 \newcommand{\pvec}{\mathbf{p}}
@@ -42,31 +32,48 @@
 \setcounter{totalnumber}{6}
 \setcounter{dbltopnumber}{4}
 
-% --- tables: shrink a tabular only when it would overflow the text width -
+% --- tables: shrink a tabular only when it would overflow the float it sits
+%     in, i.e. one column for table and the full text width for table* ------
 \newcommand{\fitwidth}[1]{%
-  \resizebox{\ifdim\width>\textwidth \textwidth\else\width\fi}{!}{#1}}
+  \resizebox{\ifdim\width>\linewidth \linewidth\else\width\fi}{!}{#1}}
+
+% --- journal front matter; the publisher fills these at production --------
+\articletype{RESEARCH ARTICLE}
+\journal{Advanced Quantum Technologies}
+\volume{0}
+\copyyear{2026}
+\startpage{1}
+% Wiley's own placeholder: the production team replaces it with the assigned
+% article DOI.  Never ship a minted-DOI placeholder of our own here.
+\articledoi{10.1002/0000}
 
 \begin{document}
 
 \title{Distribution-level variational quantum error mitigation for learned
 quantum metrology}
+\titlemark{Distribution-level variational quantum error mitigation for
+learned quantum metrology}
 
-\author{Qingchuan Yang}
-\email{yangqingchuan@my.swjtu.edu.cn}
-\affiliation{\swjtuaffil}
-\affiliation{\companyaffil}
+\author[1,2]{Qingchuan Yang}
+% TODO(author): the checklist requires an ORCID ID per author; insert them as
+% a second optional argument, e.g. \author[1,2]{Qingchuan Yang}[https://orcid.org/0000-...].
+\author[1]{Xianing Feng}
+\author[1]{Lianfu Wei}
+\authormark{YANG \textsc{et al.}}
 
-\author{Xianing Feng}
-\email{fengxn5@swjtu.edu.cn}
-\affiliation{\swjtuaffil}
+\address[1]{\orgdiv{Information Quantum Technology Laboratory, School of
+Information Science and Technology, }\orgname{Southwest Jiaotong University,
+}\orgaddress{\state{Chengdu, Sichuan, }\country{China}}}
+\address[2]{\orgname{Sichuan Zhitu Linghai Intelligent Technology Co., Ltd.,
+}\orgaddress{\state{Chengdu, Sichuan, }\country{China}}}
 
-\author{Lianfu Wei}
-\email{Contact author: lfwei@swjtu.edu.cn}
-\affiliation{\swjtuaffil}
+\corres{Lianfu Wei (\email{lfwei@swjtu.edu.cn})}
 
-\date{\today}
+\fundingInfo{National Key Research and Development Program of China,
+Grant/Award Number: 2021YFA0718803; National Natural Science Foundation of
+China}
 
-\begin{abstract}
+\abstract[ABSTRACT]{
 Variational quantum sensors are calibrated on noiseless or low-noise data and
 then deployed on hardware whose noise biases the very measurement statistics
 the learned decoder inverts.  We introduce \dvaqem{}, a variational quantum
@@ -85,7 +92,7 @@ $4^N$-dimensional one.  Our second contribution is a shot-aware training
 objective that adds the exact delta-method variance of the decoded estimate to
 the usual distribution-matching loss, making the mitigation map aware of the
 operating shot budget without any Monte-Carlo sampling.  On an eight-qubit
-variational interferometer subjected to depolarising, dephasing,
+variational interferometer subjected to depolarizing, dephasing,
 amplitude-damping and readout noise at sixteen strengths, \dvaqem{} reduces the
 mean squared phase error by $33.2$ dB (infinite shots, 95\% paired bootstrap CI
 $[27.8,38.0]$) and by $10.7$--$20.5$ dB
@@ -101,10 +108,10 @@ within $0.6$ dB of the Cram\'er--Rao bound of the noisy data, the approach
 scales to ten qubits where the calibration data are eleven numbers per phase
 against $10^6$ for process tomography, and five calibration phases already buy
 $25$ dB of the reduction.
-\end{abstract}
+}
 
-\keywords{Quantum error mitigation, quantum metrology, phase estimation,
-variational quantum algorithms, Fisher information, Cram\'er--Rao bound}
+\keywords{Quantum error mitigation | quantum metrology | phase estimation |
+variational quantum algorithms | Fisher information | Cram\'er--Rao bound}
 
 \maketitle
 
@@ -150,7 +157,7 @@ depends strongly on the shot budget.
 We address all three.  Our starting point is structural.  For the collective
 probe considered here the measurement statistics are aggregated onto the
 population imbalance $m=\#0-\#1$, an $(N+1)$-outcome statistic.  We prove
-(Sec.~\ref{subsec:sufficiency}) that for the noiseless circuit---and exactly so
+(Section~\ref{subsec:sufficiency}) that for the noiseless circuit---and exactly so
 also under readout noise---the conditional distribution of the full bit string
 given $m$ is phase-independent, i.e.\ $m$ is a sufficient statistic in the
 Fisher--Neyman sense \cite{casella2002statistical}: no information about the
@@ -161,12 +168,12 @@ mitigation is therefore not an approximation: it is the \emph{complete}
 description of the estimation problem, in a space whose dimension grows
 linearly with $N$.
 
-On this space we define \dvaqem{} (Sec.~\ref{sec:method}): a parametric map
+On this space we define \dvaqem{} (Section~\ref{sec:method}): a parametric map
 $M_{\psi}$ from the noisy sector distribution to a corrected one, trained on
 calibration data only---pairs of noisy and noiseless distributions at known
 reference phases, the standard VAQEM resource assumption
 \cite{strikis2021learning}---with four objectives (least squares,
-cross-entropy, a Fisher-information score-matching regulariser, and a
+cross-entropy, a Fisher-information score-matching regularizer, and a
 shot-aware objective) over two map families (an $(N+1)^2$-parameter linear map
 and a $1673$-parameter multilayer perceptron).  The shot-aware objective is our
 second technical contribution: using the delta method
@@ -175,7 +182,7 @@ decoded phase under multinomial sampling and add it to the bias term, so the
 map is fitted at the shot budget at which it will be used; the same formula
 validates our finite-shot error bars analytically, without Monte Carlo.
 
-The numerical study (Sec.~\ref{sec:results}) covers sixteen noise settings on
+The numerical study (Section~\ref{sec:results}) covers sixteen noise settings on
 an eight-qubit variational interferometer, a shot-budget sweep from $64$ to
 $8192$ shots, a scaling study to ten qubits, a calibration-budget study, and
 three-seed and cold-start robustness checks, all produced by an exact
@@ -190,7 +197,7 @@ at finite shots while using $81$--$1673$ instead of $9666$ trainable parameters
 and leaving the certified decoder untouched.  Each of these comparisons is
 reported with a paired bootstrap interval and an exact test over the sixteen
 noise settings rather than as a bare point estimate
-(Sec.~\ref{subsec:noise}, Tables~\ref{tab:ci}--\ref{tab:ci_claims}), so the
+(Section~\ref{subsec:noise}, Tables~\ref{tab:ci}--\ref{tab:ci_claims}), so the
 reader can check not only the size of an effect but whether it is resolvable at
 this sample size.  We also quantify what is lost by
 not knowing the noise model: a genie estimator with the exact noise model and
@@ -222,7 +229,7 @@ so that the estimator sees an $(N+1)$-dimensional probability vector
 $\pvec_m(\phi)\in\Delta^{N}$.  A frozen multilayer perceptron
 $D_{\mathbf w}:\Delta^{N}\to S^1$ (architecture
 $(N{+}1)\to128\to64\to2$ with softsign hidden layers and a linear,
-$\ell_2$-normalised output read out as $\phihat=\mathrm{atan2}$; $9666$
+$\ell_2$-normalized output read out as $\phihat=\mathrm{atan2}$; $9666$
 parameters at $N=8$) returns the phase estimate.  $D_{\mathbf w}$ and the
 circuit are trained jointly on noiseless data with the circular loss
 $2[1-\cos(\phihat-\phi)]$ over $100$ reference phases, exactly as in
@@ -242,7 +249,7 @@ tomography and no folded circuits are required.
 \subsection{Noise model, estimators and metric}
 \label{subsec:noise}
 
-Noise is a Markovian single-qubit channel $\Lambda$ (depolarising, dephasing or
+Noise is a Markovian single-qubit channel $\Lambda$ (depolarizing, dephasing or
 amplitude damping of strength $p$) applied after every gate, plus a symmetric
 readout bit-flip of probability $q$; the full circuit is simulated exactly as a
 Kraus density-matrix evolution (Appendix~\ref{app:validation}).  We write the
@@ -261,7 +268,7 @@ $41$ independent Monte-Carlo trials.  The random seed is offset by the shot
 budget, so that at a given $S$ every method is evaluated on \emph{the same}
 multinomial draws; all method-to-method comparisons at fixed $S$ are therefore
 paired, which is what the bootstrap confidence intervals of
-Sec.~\ref{sec:results} exploit.
+Section~\ref{sec:results} exploit.
 
 \paragraph{Statistical protocol.}
 Uncertainty is quantified by a paired percentile bootstrap with $B=20\,000$
@@ -325,7 +332,7 @@ same aggregation of flipped outcomes, so \eqref{eq:fi-equal} is unaffected.
 \end{proof}
 
 Theorem~\ref{thm:sufficiency} is verified numerically in
-Fig.~\ref{fig:sufficiency}a and Table~\ref{tab:e1}: for noiseless and readout-noise
+Figure~\ref{fig:sufficiency}a and Table~\ref{tab:e1}: for noiseless and readout-noise
 circuits at $N=4,6,8,10$, with trained and with random circuit parameters, the
 two Fisher informations agree to $\le 7\times10^{-15}$ relative, i.e.\ to
 machine precision.  Once a channel acts \emph{inside} the circuit the
@@ -334,24 +341,24 @@ approximate; rather than claim exactness we bound the price.  The
 Cram\'er--Rao penalty of estimating $\phi$ from $\pvec_m$ instead of
 $\pvec_{\rm full}$,
 $\Delta_{\rm CRB}=10\log_{10}\big[F(p_{\rm full})/F(p_m)\big]$, stays below
-$4.6\times10^{-3}$ dB for depolarising rates up to $p=0.02$ per gate
-(Fig.~\ref{fig:sufficiency}b), and a grid-refinement control
+$4.6\times10^{-3}$ dB for depolarizing rates up to $p=0.02$ per gate
+(Figure~\ref{fig:sufficiency}b), and a grid-refinement control
 ($n_\phi=21,41,81$) shows the residual to be a genuine information loss of the
 noisy model rather than a finite-difference artefact (it is stable at
 $1.8\times10^{-3}$--$1.9\times10^{-3}$ dB).  In metrological terms: the
 $(N+1)$-dimensional sector family \emph{is} the estimation problem, and
 everything we do next happens in that space.
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{fig2_sufficiency.pdf}
+\includegraphics[width=\linewidth]{fig2_sufficiency.pdf}
 \caption{\textbf{The sector reduction is (nearly) free.}
 \textbf{a}~Fisher information of the full $2^N$-outcome family versus that of
 the $(N+1)$-outcome sector family, for $N=4,6,8,10$, trained and random circuit
 parameters, and five noise conditions; the points lie on the identity line to
 machine precision for noiseless and readout noise.
 \textbf{b}~Cram\'er--Rao penalty $\Delta_{\rm CRB}$ of the reduction under
-depolarising gate noise, where sufficiency is only approximate: solid lines
+depolarizing gate noise, where sufficiency is only approximate: solid lines
 are trained circuits, dotted lines random ones; the penalty stays below
 $4.6\times10^{-3}$ dB.
 \textbf{c}~Mean Fisher information versus qubit number for three noise
@@ -369,11 +376,11 @@ device and the frozen certified decoder: the device supplies the sector
 distribution $\yvec$, the map returns a corrected distribution
 $\tilde\pvec$, and the estimator itself is never modified
 (Figure~\ref{fig:concept}a).  Everything below happens in the
-$(N+1)$-dimensional sector space established in Sec.~\ref{sec:setup}.
+$(N+1)$-dimensional sector space established in Section~\ref{sec:setup}.
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{fig1_concept.pdf}
+\includegraphics[width=\linewidth]{fig1_concept.pdf}
 \caption{\textbf{Distribution-level error mitigation.}
 \textbf{a}~Data flow.  The probe circuit imprints the unknown phase; the
 outcome statistics are aggregated onto the collective imbalance
@@ -383,7 +390,7 @@ the frozen, certified decoder reads out $\phihat$.  The map is fitted once on
 calibration data---noisy distributions at known reference phases together with
 noiseless targets from a classical model of the same circuit---and never sees
 the test phases or the noise model.
-\textbf{b}~The three sector distributions at $\phi=0.6$ rad for depolarising
+\textbf{b}~The three sector distributions at $\phi=0.6$ rad for depolarizing
 $p=0.01$, $N=8$: noiseless target, noisy input, and the deployed linear
 shot-aware map output (the exact parameters stored with the results).
 \textbf{c}~Classical Fisher information of the three families over the phase
@@ -401,12 +408,12 @@ We consider two parametric families of maps on the sector space.  The
 \emph{linear} map $\tilde\pvec = T\yvec$ with
 $T\in\mathbb R^{(N+1)\times(N+1)}$ has $(N+1)^2=81$ parameters at $N=8$; it
 contains the exact inverse of any flip-equivalent channel (readout bit-flip,
-and depolarising noise to leading order) and is convex in $T$ for the
+and depolarizing noise to leading order) and is convex in $T$ for the
 least-squares objective.  The \emph{MLP} map
 $\tilde\pvec = W_3\,\sigma(W_2\,\sigma(W_1\yvec+b_1)+b_2)+b_3$ with hidden
 widths $(32,32)$ has $1673$ parameters and can represent nonlinear corrections
-such as the renormalisation of a clipped quasi-probability.  Both are followed
-by clipping at zero and renormalisation, so the decoder always receives a
+such as the renormalization of a clipped quasi-probability.  Both are followed
+by clipping at zero and renormalization, so the decoder always receives a
 probability vector; the clip is what makes the mitigated object a
 quasi-probability in intermediate steps, exactly as in probabilistic error
 cancellation \cite{temme2017error,endo2018practical}, except that here the
@@ -428,7 +435,7 @@ the clean family and is the distribution-level analogue of the scalar VAQEM
 cost \cite{strikis2021learning}; it is sensitive to the small-probability tails
 that carry the phase information.
 
-\paragraph{Fisher-information regulariser.}
+\paragraph{Fisher-information regularizer.}
 Matching distributions does not by itself guarantee that the \emph{sensitivity}
 of the family is preserved.  We add the relative Fisher information
 (score-matching) distance
@@ -492,7 +499,7 @@ shot count is smallest is the one deployed.  The test grid is never used for
 selection; we report the agreement between the holdout choice and the
 test-set-optimal choice only as a diagnostic ($7/16$ settings), and the
 resulting selection is stable across random seeds ($16/16$ settings,
-Sec.~\ref{subsec:robust}).  The whole procedure fits all seven variants in
+Section~\ref{subsec:robust}).  The whole procedure fits all seven variants in
 $21.9\pm0.6$ s on six CPU cores at $N=8$, independently of $N$
 (Table~\ref{tab:cost}).
 
@@ -505,7 +512,7 @@ $(1,3,5)$ and an over-determined quadratic fit on $(1,3,5,7,9)$, the strongest
 extrapolation the data allow; (iii) the \emph{exact sector inverse}, the
 analytic inverse of the flip-equivalent part of the channel---a \emph{genie}
 form of readout-error mitigation that is told the exact effective flip rate,
-available exactly only for readout noise, approximately for depolarising noise,
+available exactly only for readout noise, approximately for depolarizing noise,
 and not at all for the two channel families that are not flip-equivalent
 ($8$ of the $16$ settings); (iv) the \emph{calibrated sector inverse}, which is
 readout-error mitigation as a practitioner actually runs it: the same binomial
@@ -529,14 +536,14 @@ quasi-probability form of (iv), sharing its assignment matrix but sampling the
 inverse channel shot by shot instead of inverting it, so its purpose is to price
 that route rather than to rank methods.  Its results, and the reason it is not a
 row of Supplemental Tables~\ref{tab:sweep_inf}--\ref{tab:sweep_S1024}, are the
-subject of Sec.~\ref{subsec:pec}.
+subject of Section~\ref{subsec:pec}.
 
 Baselines (iii) and (iv) share one inversion machinery and differ only in where
 the assignment matrix comes from, which is what makes the pair informative.  The
 calibration in (iv) is not a handicap: on the four pure-readout settings
 $\hat q$ reproduces the true flip rate to $3.8\times10^{-12}$, so the binomial
 family contains the channel exactly there and the estimator recovers it.  On the
-depolarising settings the analytic rate of (iii) is only a flip-equivalent
+depolarizing settings the analytic rate of (iii) is only a flip-equivalent
 \emph{surrogate} for the exact Kraus channel, and the calibrated rate---scoring
 both on the same objective over the same calibration phases---fits the exact
 channel better in $4$ of the $8$ settings where the analytic
@@ -582,9 +589,9 @@ largest where the noise is strongest but still information-bearing
 $2\times10^{-4}$ of the clean Fisher information: there is almost nothing left
 to recover, and no method in our suite recovers more.
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{fig3_sweep.pdf}
+\includegraphics[width=\linewidth]{fig3_sweep.pdf}
 \caption{\textbf{Headline comparison, $N=8$, infinite shots.}
 \textbf{a--d}~Mean squared wrapped phase error versus noise strength for the
 four channels; the dashed line is the noiseless decoder floor ($-65.3$ dB).
@@ -642,7 +649,7 @@ nominally ahead in $10$--$11$ of the sixteen settings, but at this sample size
 the difference is not resolvable---which is exactly the claim we make, and not a
 stronger one.  It does so while using $81$--$1673$
 instead of $9666$ trainable parameters, requiring no quantum--classical
-re-optimisation loop, and leaving the certified decoder untouched
+re-optimization loop, and leaving the certified decoder untouched
 (Table~\ref{tab:ci_claims}).  Third, the
 known-noise-model oracle remains far ahead (mean $-89.1$ dB at infinite shots,
 a $46.1$ dB gap to \dvaqem{}, 95\% CI $[40.3,52.7]$ dB): model-free mitigation
@@ -669,7 +676,7 @@ $[+4.2,+12.0]$ at $S=1024$ and $+9.5$ dB $[+5.3,+14.0]$ at $S=4096$, winning
 $16/16$, $16/16$ and $15/16$ settings with exact sign $p\le5.2\times10^{-4}$.
 The amplification is directly visible: in $4$ of the $64$ (setting, budget)
 cells---all of them at finite shots, all of them dephasing or the strongest
-depolarising setting---the calibrated inverse leaves the estimate \emph{worse}
+depolarizing setting---the calibrated inverse leaves the estimate \emph{worse}
 than not mitigating at all.  The same reversal holds against the genie inverse
 that is told the exact flip rate, which is undefined in $8$ of the $16$
 settings: \dvaqem{} is behind there on average at infinite shots ($-4.8$ dB
@@ -684,7 +691,7 @@ floor: the mean gain over the unmitigated estimator is $10.7$, $15.4$ and
 $20.5$ dB at $S=256,1024,4096$, and the residual distance to the
 \emph{noiseless} shot-noise floor is only $5.7$, $6.6$ and $6.4$ dB, i.e.\
 \dvaqem{} closes $65$--$76\,\%$ of the decibel gap that noise opens between the
-unmitigated estimator and the ideal device (Fig.~\ref{fig:sweep}e,f).
+unmitigated estimator and the ideal device (Figure~\ref{fig:sweep}e,f).
 
 Finally, the mitigated estimator uses the information present in the noisy
 data essentially optimally: its mean squared error lies within $0.6$ dB of the
@@ -712,24 +719,24 @@ signal.
 
 Exploiting it is worth a lot.  Refitting the shot-aware map at the operating
 budget improves on the shot-independent cross-entropy map by up to $8.6$ dB
-(depolarising), $12.8$ dB (amplitude damping) and $14.2$ dB (readout) at
+(depolarizing), $12.8$ dB (amplitude damping) and $14.2$ dB (readout) at
 $S=8192$, with the gain growing monotonically in $S$ as the bias term becomes
-the limiting one (Fig.~\ref{fig:shots}d); at $S=64$ the two coincide, as they
+the limiting one (Figure~\ref{fig:shots}d); at $S=64$ the two coincide, as they
 must, because both are then variance-dominated.  The bias--variance
-decomposition (Fig.~\ref{fig:shots}c) shows the mechanism: the shot-aware map
+decomposition (Figure~\ref{fig:shots}c) shows the mechanism: the shot-aware map
 keeps the variance and reduces the squared bias by up to two orders of
 magnitude.  A cold-start ablation (Table~\ref{tab:ablation}) shows that the
 staged warm starts are a robustness device rather than a necessity in this
 regime: refitting from scratch changes the deployed MSE by $-0.3$ dB on average
 (worst case $+1.4$ dB) and changes the selected variant in $1/16$ settings.
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{fig4_finite_shots.pdf}
+\includegraphics[width=\linewidth]{fig4_finite_shots.pdf}
 \caption{\textbf{Finite shots and the delta method.}
 \textbf{a}~Monte-Carlo mean squared error (markers, $41$ trials) and the
 analytic prediction $\mathrm{bias}^2+\mathrm{Var}_S$ (dotted) versus shot
-budget for depolarising $p=0.01$.
+budget for depolarizing $p=0.01$.
 \textbf{b}~Ratio of Monte-Carlo to analytic MSE for all $96$ (setting, method,
 $S$) points; the band marks $\pm10\,\%$.  The large deviations belong to ZNE at
 $S\le256$.
@@ -746,7 +753,7 @@ shot-independent map, for the three settings.}
 \label{subsec:scaling}
 
 The scaling study repeats the full method suite at $N=4,6,8,10$ with
-depolarising $p=0.01$ (Fig.~\ref{fig:scaling}, Table~\ref{tab:scaling}), each
+depolarizing $p=0.01$ (Figure~\ref{fig:scaling}, Table~\ref{tab:scaling}), each
 size using its own independently trained interferometer.  The unmitigated
 estimator degrades with $N$ (from $-5.8$ dB at $N=4$ to $+2.1$ dB at $N=10$ at
 $S=1024$) because the same per-gate error rate acts on a larger probe; the
@@ -770,10 +777,10 @@ we attribute it to the combination of a strongly information-poor noisy family
 $11$-dimensional distribution, and regard closing it as the main quantitative
 target for hardware experiments.
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{fig5_scaling.pdf}
-\caption{\textbf{Scaling with qubit number} (depolarising $p=0.01$).
+\includegraphics[width=\linewidth]{fig5_scaling.pdf}
+\caption{\textbf{Scaling with qubit number} (depolarizing $p=0.01$).
 \textbf{a}~MSE versus $N$ at $S=1024$ (solid) and infinite shots (dotted) for
 the method suite; each $N$ uses its own independently trained interferometer.
 \textbf{b}~Data and parameter volumes: the sector formulation needs $N+1$
@@ -791,7 +798,7 @@ exponentially ($833$ s at $N=10$).}
 \label{subsec:calib}
 
 Figure~\ref{fig:calib} asks how much calibration resource \dvaqem{} needs at
-depolarising $p=0.01$, $S=1024$.  Along the phase axis, the linear shot-aware
+depolarizing $p=0.01$, $S=1024$.  Along the phase axis, the linear shot-aware
 map already delivers $-23.6$ dB (a $25.3$ dB reduction) from $n_{\rm cal}=5$
 phases and saturates at $-24.2$ dB by $n_{\rm cal}=17$; the MLP maps need
 $n_{\rm cal}\ge17$ to reach the same level, which is exactly the
@@ -810,10 +817,10 @@ or from a classical model with sampling error.  Both axes confirm that the
 resource consumed by \dvaqem{} is the standard VAQEM one---tens of calibrated
 phase points---and not tomography.
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{fig6_calibration.pdf}
-\caption{\textbf{Calibration budget} (depolarising $p=0.01$, $N=8$, evaluated
+\includegraphics[width=\linewidth]{fig6_calibration.pdf}
+\caption{\textbf{Calibration budget} (depolarizing $p=0.01$, $N=8$, evaluated
 at $S=1024$).
 \textbf{a}~MSE versus the number of calibration phases: the linear shot-aware
 map needs only five phases for a $25$ dB reduction; the MLP maps need
@@ -837,7 +844,7 @@ settings whose overhead satisfies $\gamma\le20$ (largest $\gamma=18.1$ among
 them)---so nothing but \emph{variance} can separate them, which makes PEC the
 sharpest available probe of what a quasi-probability correction costs.  We
 therefore ran it on its own grid: the $16$ settings of the headline sweep plus a
-mixed depolarising--readout setting and three stronger readout rates, $20$ in
+mixed depolarizing--readout setting and three stronger readout rates, $20$ in
 total, with $25$ calibration phases, $41$ held-out test phases and $25$
 Monte-Carlo trials per finite-shot cell.  All four comparators---calibrated PEC,
 PEC handed the analytic rate, the deterministic inverse and no mitigation---are
@@ -856,7 +863,7 @@ one: up to $215$ dB of variance amplification at dephasing $p=0.05$, where
 $\hat q=0.477$ approaches the $q=1/2$ singularity at which the channel ceases to
 be invertible at all.  Calibration is not the limitation.  On the $7$
 pure-readout settings, where the binomial family contains the channel exactly,
-$\gamma$ is recovered to $7.3\times10^{-11}$ relative; on depolarising noise,
+$\gamma$ is recovered to $7.3\times10^{-11}$ relative; on depolarizing noise,
 where a single flip rate can only ever be a surrogate, the same fit is up to
 $26\%$ off.  Hence PEC built on calibration data is physically indistinguishable
 from PEC handed the analytic rate at every finite budget---the mean difference is
@@ -886,9 +893,9 @@ rather than inferred from the aggregate means.
 
 Two consequences matter for how such a baseline ought to be run.  First, where
 the assignment matrix is ill-conditioned the two estimators do separate, and the
-\emph{regularised} one is better: across the $7$ settings with $\gamma>20$ the
+\emph{regularized} one is better: across the $7$ settings with $\gamma>20$ the
 Tikhonov term inside the deterministic inverse buys up to $8.9$ dB (dephasing
-$p=0.05$, $\gamma=5.4\times10^{10}$).  An unregularised exact inverse is not a
+$p=0.05$, $\gamma=5.4\times10^{10}$).  An unregularized exact inverse is not a
 fair comparator there, and the gap is a property of the inversion rather than of
 PEC.  Second, PEC does not escape model error either.  Mis-specifying the flip
 rate by $0.02$ costs $19.1$ dB ($-39.2\to-20.1$ dB); the deterministic inverse
@@ -910,7 +917,7 @@ variant in all $16$ settings every time; the per-setting spread of the deployed
 MSE is $0.00$ dB at infinite shots and at most $0.93$ dB (mean $0.46$ dB) at
 $S=1024$, i.e.\ of the order of the Monte-Carlo error bar itself
 (Table~\ref{tab:seeds}).  The cold-start ablation of
-Sec.~\ref{subsec:shots} and the Fisher-weight choice ($\lambda=1$ throughout)
+Section~\ref{subsec:shots} and the Fisher-weight choice ($\lambda=1$ throughout)
 leave the conclusions unchanged.  Finally, every distribution used above comes
 from a simulator that reproduces PennyLane's \texttt{default.mixed} to
 $\le3.5\times10^{-13}$ and the stored VQ-CNNI checkpoints to machine precision,
@@ -935,7 +942,7 @@ deployments.  Model knowledge is worth less than one might expect, though, as
 soon as the correction has to be \emph{sampled}: probabilistic error
 cancellation built on the same model is dominated by the deterministic inverse
 in $20/20$ settings at every finite budget we tested
-(Sec.~\ref{subsec:pec}), so the advantage of knowing the channel is largely
+(Section~\ref{subsec:pec}), so the advantage of knowing the channel is largely
 confined to the infinite-shot limit.
 
 \paragraph{Why distribution level, and why now.}
@@ -961,7 +968,7 @@ probe whose readout is aggregated onto a collective statistic, and the four
 independently trained checkpoints ($N=4,6,8,10$) already show that the
 conclusions are not tied to one trained model.  The mitigated family is a
 clipped quasi-probability, so its Fisher information is support-restricted and
-must be read as a diagnostic (Fig.~\ref{fig:concept}c), not as a Cram\'er--Rao
+must be read as a diagnostic (Figure~\ref{fig:concept}c), not as a Cram\'er--Rao
 bound; the largest clipped negative mass we observe is $0.10$.  And at
 dephasing $p=0.05$ the noisy family retains $2\times10^{-4}$ of the clean
 Fisher information: no mitigation, ours included, can create information that
@@ -994,50 +1001,7 @@ Cram\'er--Rao bound of the noisy data.  Distribution-level mitigation is
 therefore a practical, model-free route to deploying calibrated quantum sensors
 on noisy hardware.
 
-\begin{acknowledgments}
-This work is partially supported by the National Key Research and Development
-Program of China (NKRDC) under Grant No.~2021YFA0718803 and by the National
-Natural Science Foundation of China (NSFC).  The authors thank the developers
-of PennyLane and autograd, whose tools made the cross-validation in
-Appendix~\ref{app:validation} possible.
-\end{acknowledgments}
-
-\bigskip\noindent
-\textbf{Code and data availability}  All code (exact density-matrix simulator,
-mitigation suite, experiment drivers, figure and table generators) and all
-result files, including the machine-readable digest of every number quoted here,
-are publicly archived in the accompanying repository
-\url{https://github.com/RichardYang88/D-VAQEM}; a versioned long-term copy will
-be archived at Zenodo.%
-% TODO(author): confirm the public repository URL; once the Zenodo snapshot DOI
-% is minted, cite it in this footnote in the camera-ready version.  Never ship
-% a literal placeholder DOI in the submitted PDF.
-\footnote{Long-term archive: the DOI minted for the versioned Zenodo snapshot
-will be listed in the camera-ready version.}
-The repository contains \texttt{code/} (simulator, mitigation suite and
-drivers), \texttt{results/} (every result file quoted here, including
-\texttt{paper\_numbers.md} and \texttt{run\_manifest.json}),
-\texttt{models/} (interferometer checkpoints for $N=10$), \texttt{figures/} and
-\texttt{paper/} (manuscript sources and generated tables); a disk cache of exact
-density-matrix datasets makes re-runs cheap, and
-\texttt{results/simulator\_validation.txt} records the $53$-check
-cross-validation of the simulator, including the independent PennyLane
-density-matrix check.  The VQ-CNNI interferometer checkpoints and the companion
-study are at \url{https://github.com/RichardYang88/VQ-CNNI}.
-
-\bigskip\noindent
-\textbf{Author contributions}  H.~Y. and Y.-C.~W. conceived the study.
-Y.-C.~W. implemented the simulator, the mitigation suite and the experiment
-drivers, performed the numerical studies, and generated all figures and tables.
-Both authors derived the analytic results, analysed the data, and wrote and
-approved the manuscript.%
-% TODO(author): confirm the contribution split and the author initials/order.
-
-\bigskip\noindent
-\textbf{Conflict of interest}  The authors declare no competing interests.
-
 \appendix
-\onecolumngrid
 
 \section{Proofs}
 \label{app:proofs}
@@ -1085,26 +1049,81 @@ every gate and supports unitary folding.  It is validated by $53$ automated
 checks (\texttt{code/validate\_simulator.py}), all of which pass:
 (i) the noiseless statevector, real-representation and density-matrix paths
 agree to $\le3\times10^{-15}$; (ii) trace preservation of every Kraus set and
-normalisation of every output distribution; (iii) fold invariance of the
+normalization of every output distribution; (iii) fold invariance of the
 noiseless circuit ($\le6\times10^{-15}$); (iv) exactness of the sector
 reduction, $A K_{\rm full}=K_m A$ for the noisy sector kernel, to
 $1.1\times10^{-16}$, and information preservation
 $F(\pvec_m)=F(\pvec_{\rm full})$ to $2.0\times10^{-14}$ relative;
 (v) agreement with PennyLane~0.42 \texttt{default.mixed} at $N=4$ for
-depolarising, dephasing, amplitude-damping and bit-flip channels and folds
+depolarizing, dephasing, amplitude-damping and bit-flip channels and folds
 $1,3,5$, with maximum deviation $3.5\times10^{-13}$ over outcome
 probabilities, and agreement with the stored PennyLane-trained VQ-CNNI
 checkpoints (median SWPE and SLD-QFI identical to all printed digits);
 (vi) the flip-equivalent surrogate used only to accelerate the noiseless
 calibration path deviates from the exact Kraus evolution by at most
-$1.3\times10^{-2}$ in $p_m$ at the strongest depolarising rate considered, and
+$1.3\times10^{-2}$ in $p_m$ at the strongest depolarizing rate considered, and
 is never used in any reported evaluation.  The full check log ships with the
 code.
 
+% ============================ back matter ==============================
+% Wiley order: author contributions, acknowledgments, conflicts of interest,
+% data availability, references, supporting information.
+\bmsubsection*{Author Contributions}
+Q.~Y. and L.~W. conceived the study.
+Q.~Y. implemented the simulator, the mitigation suite and the experiment
+drivers, performed the numerical studies, and generated all figures and tables.
+All authors derived the analytic results, analyzed the data, and wrote and
+approved the manuscript.%
+% TODO(author): confirm the contribution split; the initials now match the
+% author list above (Q.~Y. = Qingchuan Yang, X.~F. = Xianing Feng,
+% L.~W. = Lianfu Wei) -- the previous draft carried stale initials from an
+% earlier author list.  The checklist also asks for an ORCID ID per author.
+
+\bmsubsection*{Acknowledgments}
+This work is partially supported by the National Key Research and Development
+Program of China (NKRDC) under Grant No.~2021YFA0718803 and by the National
+Natural Science Foundation of China (NSFC).  The authors thank the developers
+of PennyLane and autograd, whose tools made the cross-validation in
+Appendix~\ref{app:validation} possible.
+
+\bmsubsection*{Conflicts of Interest}
+The authors declare no conflicts of interest.
+
+\bmsubsection*{Data Availability Statement}
+All code (exact density-matrix simulator, mitigation suite, experiment drivers,
+figure and table generators) and all result files, including the
+machine-readable digest of every number quoted here, are publicly archived in
+the accompanying repository \url{https://github.com/RichardYang88/D-VAQEM}; a
+versioned long-term copy will be archived at Zenodo, and the DOI minted for that
+snapshot will be listed in the camera-ready version.  The repository contains
+\texttt{code/} (simulator, mitigation suite and drivers), \texttt{results/}
+(every result file quoted here, including \texttt{paper\_numbers.md} and
+\texttt{run\_manifest.json}), \texttt{models/} (interferometer checkpoints for
+$N=10$), \texttt{figures/} and \texttt{paper/} (manuscript sources and generated
+tables); a disk cache of exact density-matrix datasets makes re-runs cheap, and
+\texttt{results/simulator\_validation.txt} records the $53$-check
+cross-validation of the simulator, including the independent PennyLane
+density-matrix check.  The VQ-CNNI interferometer checkpoints and the companion
+study are at \url{https://github.com/RichardYang88/VQ-CNNI}.%
+% TODO(author): confirm the public repository URL, and cite the DOI minted for
+% the versioned Zenodo snapshot here in the camera-ready version.  Never ship a
+% literal placeholder DOI in the submitted PDF.  The checklist discourages
+% footnotes, so the DOI belongs in this paragraph rather than in a \footnote.
+
 \clearpage
 % ============================ bibliography ============================
-\bibliographystyle{apsrev4-2}
+% The USG class selects the Wiley numbered (Chicago) bibliography style itself
+% through the ASNA option, so no \bibliographystyle is given here.
 \bibliography{references}
+
+\bmsubsection*{Supporting Information}
+Additional supporting information may be found in the online version of this
+article at the publisher's website.  For the reviewers' convenience the
+supplemental tables are appended to this manuscript file: Tables S1--S13 give
+the per-setting mean squared error at every shot budget, the sufficiency and
+scaling diagnostics, the seed and ablation repeats, and the paired bootstrap
+confidence intervals and exact tests behind every statistical claim quoted in
+the main text.
 
 \clearpage
 % ============================ supplemental tables ========================

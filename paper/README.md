@@ -1,64 +1,87 @@
 # D-VAQEM paper — manuscript directory
 
 Distribution-level variational quantum error mitigation (D-VAQEM) for learned
-quantum metrology.  Target venue style: APS `revtex4-2` / `prresearch` (same
-class as the companion VQ-CNNI manuscript in `../../VQ-CNNI/paper/`).
+quantum metrology.  **Target venue: *Advanced Quantum Technologies*
+(Wiley-VCH)**, formatted with the publisher's `USG` class and the `ASNA` option
+(Chicago numbered references), i.e. the two-column layout and the back-matter
+order required by the journal's *Manuscript Preparation Checklist*.  The earlier
+APS `revtex4-2`/`prresearch` formatting has been superseded; the publisher's
+class and style files live in `../LaTeX-template/`.
 
 ## Contents
 
 | file | what it is |
 |---|---|
-| `manuscript.tex` | the draft: abstract, 6 sections, 2 appendices (proofs, simulator validation), 6 figures, 4 main-text tables |
-| `tables.tex` | **generated** main-text Tables I–III (`code/make_tables.py`) |
-| `tables_supplement.tex` | **generated** Supplemental Tables S1–S12 (full per-setting matrices, E1/E3/E5 tables, seed and ablation tables, and S10–S12: the paired bootstrap confidence intervals, the per-setting ZNE comparison and the claim-by-claim verdict table) |
-| `references.bib` | bibliography (companion-paper entries + QEM / metrology / statistics entries) |
+| `manuscript.tex` | the submission file: Wiley front matter (title, authors, affiliations, corresponding-author and funding blocks, abstract, keywords), 6 sections, 4 appendices (proofs, simulator validation, ablation, ZNE in the blind limit), 6 figures, Tables I–IV |
+| `tables.tex` | **generated** main-text Tables I–IV (`code/make_tables.py`), three-line booktabs rules |
+| `tables_supplement.tex` | **generated** Supplemental Tables S1–S13 (per-setting matrices, sufficiency/scaling diagnostics, seed and ablation repeats, paired bootstrap intervals, per-setting ZNE comparison, claim-by-claim verdict table) |
+| `toc_entry.tex` | the journal's Table-of-Contents entry: a 58-word text plus the 55 mm × 50 mm graphic (`../figures/fig_toc.pdf`); compile separately and upload the one-page PDF |
+| `references.bib` | bibliography (companion-paper entries + QEM / metrology / statistics entries); the manuscript gives no `\bibliographystyle` because the class supplies the Chicago numbered style |
 | `check_tex.py` | integrity checker: environment balance, `\ref`/`\label`, `\cite` vs bib keys, truncation heuristic, **plus** a cross-check that every statistical figure and every wall-clock cost quoted in the prose is re-derived from `../results/*.json` (exits non-zero on a mismatch) |
-| `../figures/` | **generated** figures (PDF for the manuscript, PNG for inspection) |
+| `make_submission.sh` | assembles a flat, self-contained submission tree (class + styles + fonts + manuscript + tables + figures) in `AQT_submission/` |
+| `../figures/` | **generated** figures (PDF for the manuscript, PNG for inspection, `fig_toc` for the ToC entry) |
 
 ## Building
 
-The manuscript needs a TeX distribution with `revtex4-2` (TeX Live
-`texlive-publishers` + `texlive-science`, or MikTeX) and `bibtex`:
+No TeX distribution is installed on the analysis machine, so the manuscript is
+validated here by `check_tex.py` and compiled on Overleaf.  The `USG` class needs
+the publisher's style files and the STIX fonts that ship with it, so assemble
+everything into one directory first:
 
 ```bash
-cd paper        # the repository root is D-VAQEM/
+bash paper/make_submission.sh          # -> paper/AQT_submission/
+cd paper/AQT_submission
 pdflatex manuscript && bibtex manuscript && pdflatex manuscript && pdflatex manuscript
+pdflatex toc_entry                     # the Table-of-Contents page
 ```
+
+`../LaTeX-template/` is **not tracked by git** — it is the publisher's 24 MB
+download (`USG.cls`, the style and `.bst` files, `Fonts/`, `images/`, the sample
+`Optimal-Design-layout.tex` and the manuscript-preparation checklist), so unpack
+the journal's Wiley LaTeX zip there before running the script.
+`make_submission.sh` copies the class, every `.sty`/`.STY`/`.bst`, `Fonts/` and
+`images/` into the submission tree together with `manuscript.tex`,
+`tables*.tex`, `references.bib`, `toc_entry.tex` and `../figures/fig*.pdf`; the
+generated `paper/AQT_submission/` is ignored as well and can be rebuilt at will.
 
 `manuscript.tex` inputs `tables.tex` and `tables_supplement.tex` and locates the
 figures through `\graphicspath{{./}{../figures/}{figures/}}`, so it builds both
-in the repository layout and from a flat Overleaf upload (`manuscript.tex` +
-`tables*.tex` + `references.bib` + `fig*.pdf` in one directory).  The generated
+in the repository layout and from the flat submission tree.  The generated
 tables use the `\fitwidth` macro defined in the manuscript preamble, so they
 must be compiled as part of `manuscript.tex`.
 
-No TeX distribution is installed on the analysis machine that produced this
-draft; `check_tex.py` was used instead to verify environment balance,
-label/reference resolution, citation keys and figure paths.
+## Formatting conventions required by the journal
 
-## Layout conventions (after the first Overleaf compile)
-
-* **Figures are declared where they are first cited.**  All six `figure*`
-  environments used to sit in a single block after the Conclusion, so LaTeX ran
-  out of room for wide floats and flushed them at the end of the document —
-  which is why the figures appeared interleaved with the reference list.  Each
-  float now sits in the paragraph that first cites it, and the preamble relaxes
-  `\topfraction`/`\dbltopfraction` and raises `topnumber`/`totalnumber`.
-* **`\clearpage` around the bibliography.**  No float can be carried into the
-  reference pages and the Supplemental tables start on a fresh page.  The
-  bibliography is typeset in the same single-column grid as the rest of the
-  preprint (the previous `\twocolumngrid` switch squeezed 12-author entries
-  into a narrow column), with an explicit `\bibliographystyle{apsrev4-2}`.
-* **No table can be wider than the page.**  `make_tables.py` wraps every tabular
-  in `\fitwidth`, which applies `\resizebox` *only* when the natural width
-  exceeds `\textwidth`.  Table II uses a grouped two-row header
-  (`depol. | deph. | amp. damp. | readout` over `∞ | 1024`) instead of eight
-  long column names, and Supplemental Tables S1/S2 rotate their 16 setting
-  names so they can be set in `\scriptsize` rather than `\tiny`.  Measured
-  natural widths (Computer Modern metrics, `\textwidth` = 469 pt): Table II
-  58 % (was 117 %), S1/S2 86 % (was 131 %), every other table ≤ 96 %.  The
-  numeric content of all 138 data rows is unchanged by this reformatting.
-* **`references.bib` is normalized.**  Journal names use the standard APS
+* **Three-line tables.**  `make_tables.py` emits `\toprule/\midrule/\bottomrule`
+  (the template loads `booktabs`); the checklist asks for horizontal lines only,
+  and the class prints captions itself in small roman type with a bold
+  "**Table n.**" label, so there is no `\hline`, no vertical rule and no manual
+  caption styling.  `\tnote`/`tablenotes` do not exist in `USG.cls`, so table
+  notes are plain sentences under the table and dagger markers became `a`/`b`/`c`.
+* **Wide floats span both columns.**  Tables II and III, the Supplemental tables
+  S1–S5, S9, S10, S12 and S13, and all six figures use `table*`/`figure*` at `width=\linewidth`
+  (17.5 cm of text width); `\fitwidth` resizes a `tabular` *only* when its
+  natural width exceeds `\linewidth`, so nothing overflows the column.  Table II
+  keeps its grouped two-row header (`depol. | deph. | amp. damp. | readout` over
+  `inf | 1024`) and S1/S2 keep their rotated setting names.  The numeric content
+  of all data rows is unchanged by this reformatting.
+* **Units in square brackets.**  Axis labels, table headers and prose read
+  `[dB]`, `[shots]`, `[s]` rather than `(dB)`, `(s)`.
+* **US spelling** throughout the body text, the generated tables and the
+  generated figure labels: `analyze`, `optimize`, `depolarizing`,
+  `regularization`, `characterization`, `utilize`, `behavior`, `color`,
+  `modeling`, …  (`check_tex.py` re-derives every quoted number from the result
+  files, so the prose cannot drift while it is edited.)
+* **Back matter in the checklist's order**: Author Contributions →
+  Acknowledgments → Conflicts of Interest → Data Availability Statement →
+  references → Supporting Information, each as a `\bmsubsection*`.  The
+  manuscript sets no `\bibliographystyle`: the `ASNA` option of `USG.cls`
+  supplies the Wiley Chicago numbered style.
+* **Figures are declared where they are first cited** and the preamble relaxes
+  `\topfraction`/`\dbltopfraction` and raises `topnumber`/`totalnumber`, so wide
+  floats are not flushed to the end of the document; `\clearpage` before the
+  bibliography keeps floats out of the reference pages.
+* **`references.bib` is normalized.**  Journal names use the standard
   abbreviations, the three arXiv entries read `journal = {arXiv:NNNN.NNNNN}`,
   the IEEE QCE paper is `@inproceedings` (it was `@article` with a proceedings
   name in the `journal` field) and the companion manuscript is `@misc` with a
@@ -71,13 +94,13 @@ cd ../code
 python collect_numbers.py --tag final     # results/paper_numbers.{md,json}
                                           #   (+ results/ci_final.json, see below)
 python make_tables.py     --tag final     # paper/tables*.tex
-python make_figures.py    --tag final     # ../figures/fig*.{pdf,png}
+python make_figures.py    --tag final     # ../figures/fig*.{pdf,png} + fig_toc
 cd ../paper && python check_tex.py        # manuscript integrity + number audit
 ```
 
 `collect_numbers.py` calls `bootstrap_ci.build()` on the headline sweep and writes
 `../results/ci_final.json`, the paired bootstrap intervals and exact tests behind
-Supplemental Tables S10–S12; `bootstrap_ci.py` can also be run standalone
+Supplemental Tables S11–S13; `bootstrap_ci.py` can also be run standalone
 (`python bootstrap_ci.py --tag final`) and prints the same digest.  It needs the
 per-phase / per-trial arrays that `run_experiments.metrics(detail=True)` stores,
 so a sweep produced before that change yields no intervals (the digest says so
@@ -98,20 +121,39 @@ Every number in `manuscript.tex` is taken from
 directly from `../results/*.json` / `*.npz`, so text, tables and figures cannot
 drift apart.  See `../README.md` for how the results themselves were produced.
 
+## Verification status
+
+All gates are green on this machine: `check_tex.py` (66 quoted numbers agree, 0
+mismatches, no undefined references), `code/test_bootstrap_ci.py` (78 checks),
+`code/test_pec.py` (57 checks), `code/validate_simulator.py` (53 checks,
+including the independent PennyLane density-matrix comparison) and
+`code/smoke_test.py`.  Every front- and back-matter macro used by
+`manuscript.tex` (`\articletype`, `\journal`, `\volume`, `\copyyear`,
+`\startpage`, `\articledoi`, `\titlemark`, `\authormark`, `\address`,
+`\orgdiv`/`\orgname`/`\orgaddress`/`\state`/`\country`, `\corres`,
+`\fundingInfo`, `\keywords`, `\bmsubsection`) is defined by `USG.cls`, and no
+`revtex4-2` macro survives in the file.  The overfull-box check still has to
+happen on Overleaf.
+
 ## Status / TODO before submission
 
-* Author list and affiliations are carried over from the companion VQ-CNNI
-  manuscript; confirm before submission.
+* **Author metadata**: add each author's ORCID ID and confirm the initials, the
+  author order and the affiliation split (search `TODO(author)` in
+  `manuscript.tex`).  The front matter uses *Qingchuan Yang*, *Xianing Feng* and
+  *Lianfu Wei* with Lianfu Wei as corresponding author, as in the companion
+  VQ-CNNI manuscript; the Author Contributions block now carries the matching
+  initials (the earlier draft had stale ones).
+* **Funding text**: `\fundingInfo` carries NKRDC Grant No. 2021YFA0718803 and a
+  generic NSFC sentence; fill in the NSFC grant number(s) and any additional
+  funder, and mirror the same wording in the Acknowledgments.
+* **Data availability**: the statement points at the public repository and
+  describes its contents; mint the Zenodo archive on acceptance and insert the
+  DOI (no placeholder DOI is printed in the current text).
 * `yang2025vqcnni` in `references.bib` is a placeholder for the companion
   manuscript (update journal/volume once published).
-* Compile once with a full TeX installation (Overleaf is fine) and confirm the
-  page breaks.  The table widths are checked numerically here (`\fitwidth`,
-  compact/rotated headers), but no TeX engine is installed on the analysis
-  machine, so the final overfull-box check has to happen on Overleaf.
-* The code-availability statement now carries a public repository URL and a
-  Zenodo footnote, but the DOI is still the literal placeholder
-  `10.5281/zenodo.PLACEHOLDER`; mint the archive on acceptance and replace it
-  (search for `TODO(author)` in `manuscript.tex`).
-* Author contributions and the conflict-of-interest statement were added with a
-  plausible split; confirm the wording and the initials
-  (second `TODO(author)` marker in `manuscript.tex`).
+* **Compile on Overleaf** from the `make_submission.sh` tree and check the page
+  breaks, the two-column float placement and any overfull boxes.
+* **Table-of-Contents entry**: compile `toc_entry.tex` and upload the one-page
+  PDF; the graphic must be 55 mm × 50 mm and the text 50–60 words (58 now).
+* **Author contributions**: the current split (conception shared, implementation
+  and analysis by Y.-C. W.) is plausible but must be confirmed by the authors.

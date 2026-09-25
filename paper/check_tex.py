@@ -36,6 +36,9 @@ for env in sorted(set(re.findall(r"\\begin\{(\w+\*?)\}", tex))):
 print("figure labels:", re.findall(r"\\label\{(fig:\w+)\}", tex))
 # heuristic: a paragraph that ends mid-sentence (truncation detector)
 body = tex.split("\\appendix")[0]
+# the front matter (title, addresses, keywords, abstract) is not prose, so it
+# must not be scanned for truncated paragraphs
+body = body.split("\\maketitle")[-1]
 bad = []
 for blk in body.split("\n\n"):
     lines = [l for l in blk.strip().split("\n") if l.strip()]
@@ -219,7 +222,7 @@ def check_numbers(text, pn):
              "learned map vs floor at the weakest readout rate")
     # ---- probabilistic error cancellation (E6) -----------------------------
     if pn.get("pec_available"):
-        CHAN = {"depol": "depolarising", "deph": "dephasing",
+        CHAN = {"depol": "depolarizing", "deph": "dephasing",
                 "ampdamp": "amplitude damping", "readout": "readout bit-flip"}
 
         def gs(key, nd=1):
@@ -360,7 +363,7 @@ def check_numbers(text, pn):
              f"${g('pec_illcond_max_gain_db', 1)}$ dB "
              f"({CHAN.get(chan, chan)} $p={pw}$, "
              f"$\\gamma={sci('pec_illcond_max_gain_gamma')}$)",
-             "regularisation gain in the ill-conditioned settings")
+             "regularization gain in the ill-conditioned settings")
         want(f"rate by ${abs(float(pn['pec_mismatch_worst_dq'])):.2f}$ costs "
              f"${g('pec_mismatch_degradation_db', 1)}$ dB "
              f"(${g('pec_mismatch_db_matched', 1)}\\to"

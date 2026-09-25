@@ -8,7 +8,7 @@ re-running any simulation:
     python make_figures.py [--tag final] [--out ../figures] [--dpi 300]
 
 Each figure is written twice, as a vector PDF (what the manuscript includes)
-and as a PNG (for quick inspection).  Panel letters, colours and method labels
+and as a PNG (for quick inspection).  Panel letters, colors and method labels
 are defined once in :data:`STYLE` / :data:`METHODS` and reused everywhere, so
 the figures and the manuscript tables speak the same language.
 """
@@ -48,9 +48,17 @@ plt.rcParams.update({
     "savefig.pad_inches": 0.02,
     "pdf.fonttype": 42,
 })
-SINGLE, DOUBLE = 3.4, 6.9           # revtex4-2 column widths (in)
+# Target widths of the manuscript layout, in inches: one column and the full
+# text width.  The Wiley USG class used for the Advanced Quantum Technologies
+# submission sets a 210 mm page with 16 mm side margins and a 6 mm column
+# separation, i.e. a 86 mm column and a 178 mm text width; the values below are
+# within 2% of those, so a figure drawn at DOUBLE and included at
+# ``width=\linewidth`` keeps its 8 pt fonts at 8 pt on the page.
+SINGLE, DOUBLE = 3.4, 6.9
+# The Table-of-Contents graphic the journal asks for is 55 mm x 50 mm.
+TOC_W, TOC_H = 55 / 25.4, 50 / 25.4
 
-# method -> (label, colour, marker, zorder)
+# method -> (label, color, marker, zorder)
 METHODS = {
     "none":           ("unmitigated",        "#444444", "o", 3),
     "zne_rich":       ("ZNE Richardson",     "#1b9e77", "^", 3),
@@ -69,7 +77,7 @@ METHODS = {
     "oracle_ml":      ("oracle (known noise)", "#000000", "x", 2),
     "noiseless":      ("noiseless floor", "#333333", None, 1),
 }
-CHANNELS = (("depol", "depolarising", "$p$"),
+CHANNELS = (("depol", "depolarizing", "$p$"),
             ("deph", "dephasing", "$p$"),
             ("ampdamp", "ampl. damping", "$p$"),
             ("readout", "readout", "$q$"))
@@ -273,7 +281,7 @@ def fig1(tag, res, out, dpi):
                                  "#1f78b4", "--")):
             ax2.plot(grid, cur[f"{setting}__{key}"], ls, color=c, label=lab)
         ax2.set_yscale("log")
-        ax2.set_xlabel("phase $\\phi$ (rad)")
+        ax2.set_xlabel("phase $\\phi$ [rad]")
         ax2.set_ylabel("classical Fisher information")
         ax2.legend(frameon=False, loc="upper right", handlelength=1.7)
         panel(ax2, "c")
@@ -326,8 +334,8 @@ def fig2(tag, res, out, dpi):
                     label=f"N={N}" if var == "trained" else None)
     ax.axhline(0, color="k", lw=0.6)
     ax.set_xscale("log")
-    ax.set_xlabel("depolarising rate $p$ per gate")
-    ax.set_ylabel("CRB penalty $\\Delta_{\\rm CRB}$ (dB)")
+    ax.set_xlabel("depolarizing rate $p$ per gate")
+    ax.set_ylabel("CRB penalty $\\Delta_{\\rm CRB}$ [dB]")
     ax.legend(frameon=False, loc="upper left", fontsize=6.0)
     panel(ax, "b")
 
@@ -386,7 +394,7 @@ def fig3(tag, res, out, dpi):
         ax.set_xscale("log")
         ax.set_xlabel(f"{cname} {sym}", labelpad=1.0)
         if k == 0:
-            ax.set_ylabel("MSE (dB)")
+            ax.set_ylabel("MSE [dB]")
         ax.set_xticks(xs)
         ax.set_xticklabels([f"{x:g}" for x in xs], fontsize=6.2)
         ax.xaxis.set_minor_formatter(NullFormatter())
@@ -420,7 +428,7 @@ def fig3(tag, res, out, dpi):
     ax.set_xticks(range(len(keys)))
     ax.set_xticklabels(xlab)
     ax.set_xlabel("shot budget $S$")
-    ax.set_ylabel("mean MSE (dB)")
+    ax.set_ylabel("mean MSE [dB]")
     ax.set_title("mean over all 16 settings", fontsize=7.4, loc="left")
     panel(ax, "e")
     ax.grid(axis="y", lw=0.3, color="#dddddd")
@@ -443,7 +451,7 @@ def fig3(tag, res, out, dpi):
     ax.set_xticks(x)
     ax.set_xticklabels([s.replace("_", " ") for s in order], fontsize=5.0,
                        rotation=55, ha="right", rotation_mode="anchor")
-    ax.set_ylabel("MSE reduction vs\nunmitigated (dB)")
+    ax.set_ylabel("MSE reduction vs\nunmitigated [dB]")
     ax.set_title("D-VAQEM gain per noise setting", fontsize=7.4, loc="left")
     panel(ax, "f")
     ax.legend(frameon=False, loc="upper right", fontsize=6.2, ncol=2)
@@ -534,7 +542,7 @@ def fig4(tag, res, out, dpi):
     ax.axhline(0, color="k", lw=0.7)
     ax.set_xscale("log")
     ax.set_xlabel("shot budget $S$")
-    ax.set_ylabel("shot-aware gain (dB)")
+    ax.set_ylabel("shot-aware gain [dB]")
     ax.set_xticks(shots)
     ax.set_xticklabels([str(S) for S in shots], fontsize=6.0)
     ax.legend(frameon=False, fontsize=6.0, loc="upper left")
@@ -572,9 +580,9 @@ def fig5(tag, res, out, dpi):
                 lw=1.2 if m == "dvaqem" else 0.9, label=lab, zorder=z)
         ax.plot(Ns, yinf, ":", color=c, lw=0.8, zorder=z)
     ax.set_xlabel("qubit number $N$")
-    ax.set_ylabel("MSE (dB)")
+    ax.set_ylabel("MSE [dB]")
     ax.set_xticks(Ns)
-    ax.set_title("depolarising $p=0.01$", fontsize=6.6, loc="left")
+    ax.set_title("depolarizing $p=0.01$", fontsize=6.6, loc="left")
     ax.legend(frameon=False, fontsize=5.7, loc="upper center", ncol=2,
               handlelength=1.6, bbox_to_anchor=(0.5, -0.24), columnspacing=1.0)
     ax.grid(lw=0.3, color="#dddddd")
@@ -614,7 +622,7 @@ def fig5(tag, res, out, dpi):
                 ms=5.0, label="calibration (21 phases)")
     ax.set_yscale("log")
     ax.set_xlabel("qubit number $N$")
-    ax.set_ylabel("wall clock (s, 6 workers)")
+    ax.set_ylabel("wall clock [s], 6 workers")
     ax.set_xticks(Ns)
     ax.legend(frameon=False, fontsize=5.7, loc="upper center", ncol=2,
               handlelength=1.6, bbox_to_anchor=(0.5, -0.24), columnspacing=1.0)
@@ -656,7 +664,7 @@ def fig6(tag, res, out, dpi):
         ax.set_xlabel(xname)
         ax.grid(lw=0.3, color="#dddddd")
         if axis == "n_cal":
-            ax.set_ylabel(f"MSE (dB), evaluated at {skey[1:]} shots")
+            ax.set_ylabel(f"MSE [dB], evaluated at {skey[1:]} shots")
             hand, labl = ax.get_legend_handles_labels()
     panel(axes[0], "a", "how many calibration phases?")
     panel(axes[1], "b", "how precise must the targets be?")
@@ -664,6 +672,47 @@ def fig6(tag, res, out, dpi):
                fontsize=5.9, handlelength=1.6, columnspacing=1.4,
                bbox_to_anchor=(0.5, -0.09))
     save(fig, "fig6_calibration", out, dpi)
+
+
+# ======================================================================
+# ToC graphic  -- 55 mm x 50 mm, the size Advanced Quantum Technologies
+# asks for.  It is uploaded next to the Table-of-Contents text rather than
+# \include'd in the manuscript body, so it carries no panel letter.
+# ======================================================================
+def fig_toc(tag, res, out, dpi):
+    """The headline result in one small panel: mean MSE versus shot budget."""
+    rows = load(f"{tag}_sweep.json", res)
+    inf = index([r for r in rows if r["shots"] == "inf"], "method", "setting")
+    keys = [k for k in ("inf", "S256", "S1024", "S4096")
+            if any(r["shots"] == k for r in rows)]
+    xlab = ["$\\infty$", "256", "1024", "4096"]
+    allset = sorted({r["setting"] for r in rows})
+    fig, ax = plt.subplots(figsize=(TOC_W, TOC_H))
+    for m in ("none", "zne_rich", "dvaqem", "noiseless"):
+        lab, c, mk, z = METHODS[m]
+        ys = []
+        for key in keys:
+            sel = index([r for r in rows if r["shots"] == key], "method",
+                        "setting")
+            if m == "dvaqem":
+                vals = [one(sel, one(inf, "none", s)["best_dvaqem"], s)["mse_db"]
+                        for s in allset]
+            else:
+                vals = [one(sel, m, s)["mse_db"] for s in allset
+                        if m in sel and s in sel[m]]
+            ys.append(float(np.mean(vals)))
+        ax.plot(range(len(keys)), ys, "-" + (mk or "o"), color=c, ms=2.6,
+                lw=1.0, label=lab, zorder=z)
+    ax.set_xticks(range(len(keys)))
+    ax.set_xticklabels(xlab)
+    ax.tick_params(labelsize=6.0)
+    ax.set_xlabel("shot budget $S$", fontsize=7.0)
+    ax.set_ylabel("mean MSE [dB]", fontsize=7.0)
+    ax.legend(frameon=False, fontsize=5.6, loc="lower right", handlelength=1.6,
+              labelspacing=0.25, borderpad=0.1)
+    ax.grid(axis="y", lw=0.3, color="#dddddd")
+    fig.subplots_adjust(left=0.21, right=0.98, top=0.97, bottom=0.19)
+    save(fig, "fig_toc", out, dpi)
 
 
 # ======================================================================
@@ -678,7 +727,8 @@ def main():
     a = ap.parse_args()
     want = a.only.split(",") if a.only else None
     for name, fn in (("fig1", fig1), ("fig2", fig2), ("fig3", fig3),
-                     ("fig4", fig4), ("fig5", fig5), ("fig6", fig6)):
+                     ("fig4", fig4), ("fig5", fig5), ("fig6", fig6),
+                     ("toc", fig_toc)):
         if want and name not in want:
             continue
         print(f"[{name}]", flush=True)
