@@ -65,6 +65,19 @@ def tex(s):
     return str(s).replace("_", r"\_").replace("%", r"\%").replace("#", r"\#")
 
 
+# Reader-facing short names of the fitted map variants.  The result files carry
+# the historical internal tags, one of which ("mlp_fisher") names the objective
+# after a quantity the paper deliberately no longer discusses; the tables print
+# the objective the way the manuscript names it.
+SHORT_VARIANT = {"mlp_fisher": r"mlp\_sm"}
+
+
+def short_variant(tag):
+    """``dvaqem_mlp_fisher`` -> ``mlp\\_sm``: short name, escaped for text mode."""
+    t = str(tag).replace("dvaqem_", "")
+    return SHORT_VARIANT.get(t, tex(t))
+
+
 def load(name, res=RES):
     with open(os.path.join(res, name)) as fh:
         return json.load(fh)
@@ -254,7 +267,7 @@ def table_scaling(rows, cost):
         gi = one(idx, N, "none", "inf")["mse_db"] - \
             one(idx, N, best, "inf")["mse_db"]
         body.append(
-            f"{N} & {N+1} & {4**N:.2e} & {tex(best.replace('dvaqem_', ''))} & "
+            f"{N} & {N+1} & {4**N:.2e} & {short_variant(best)} & "
             f"{one(idx, N, 'none', 'S1024')['mse_db']:.1f} & {bz:.1f} & "
             f"{one(idx, N, best, 'S1024')['mse_db']:.1f} & "
             f"{one(idx, N, 'retrain_dec', 'S1024')['mse_db']:.1f} & "
@@ -453,10 +466,10 @@ def table_robustness(seeds, abl, base_rows):
                       one(ix, one(ix, "none", s)["best_dvaqem"], s)["mse_db"]
                       for s in sts]
                 cells.append(f"{np.mean(gs):.2f}")
-                sel |= {one(ix, "none", s)["best_dvaqem"].replace("dvaqem_", "")
-                        for s in sts}
+                sel |= {one(ix, "none", s)["best_dvaqem"] for s in sts}
             body.append(f"{tag} & {cells[0]} & {cells[1]} & "
-                        f"{tex(', '.join(sorted(sel)))} \\\\")
+                        f"{', '.join(short_variant(x) for x in sorted(sel))}"
+                        " \\\\")
         body.append("\\hline")
         out += env_table("Repeat runs of the headline sweep with independent "
                          "random seeds: mean SWPE reduction over the 16 "
@@ -474,8 +487,8 @@ def table_robustness(seeds, abl, base_rows):
             bc = one(ia, "none", s)["best_dvaqem"]
             w = one(ib, bw, s)["mse_db"]
             c = one(ia, bc, s)["mse_db"]
-            body.append(f"{tex(s)} & {tex(bw.replace('dvaqem_', ''))} & "
-                        f"{tex(bc.replace('dvaqem_', ''))} & {w:.1f} & {c:.1f} & "
+            body.append(f"{tex(s)} & {short_variant(bw)} & "
+                        f"{short_variant(bc)} & {w:.1f} & {c:.1f} & "
                         f"{c - w:.1f} \\\\")
         body.append("\\hline")
         out += "\n" + env_table(
@@ -581,7 +594,7 @@ def table_ci(ci):
             if not bz:
                 continue
             body.append(
-                f"{tex(s)} & {tex(e['selected'].replace('dvaqem_', ''))} & "
+                f"{tex(s)} & {short_variant(e['selected'])} & "
                 f"{tex(e.get('best_zne_variant', '?').replace('zne_', ''))} & "
                 f"${e['mse_db']:.1f}$ & ${bz['point']:.2f}$ & "
                 f"{_ci(bz, pct)} & {_p(bz['p_one_sided'])} & "

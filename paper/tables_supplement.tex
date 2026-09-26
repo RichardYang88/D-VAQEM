@@ -246,9 +246,9 @@ noiseless floor & -31.3 & -31.3 & -31.3 & -31.3 \\
 \toprule
 run & gain [dB] $\infty$ & gain [dB] $S1024$ & selected variants \\
 \midrule
-seed0 & 33.16 & 15.42 & lin\_mse, mlp\_fisher, mlp\_mse \\
-seed1 & 33.16 & 15.38 & lin\_mse, mlp\_fisher, mlp\_mse \\
-seed2 & 33.16 & 15.42 & lin\_mse, mlp\_fisher, mlp\_mse \\
+seed0 & 33.16 & 15.42 & lin\_mse, mlp\_sm, mlp\_mse \\
+seed1 & 33.16 & 15.38 & lin\_mse, mlp\_sm, mlp\_mse \\
+seed2 & 33.16 & 15.42 & lin\_mse, mlp\_sm, mlp\_mse \\
 \bottomrule
 \end{tabular}%
 }
@@ -272,11 +272,11 @@ ampdamp\_0.02 & mlp\_mse & mlp\_mse & -53.2 & -53.2 & 0.0 \\
 deph\_0.005 & lin\_mse & lin\_mse & -38.7 & -38.7 & 0.0 \\
 deph\_0.01 & lin\_mse & lin\_mse & -34.4 & -34.4 & 0.0 \\
 deph\_0.02 & mlp\_mse & mlp\_mse & -31.4 & -31.4 & 0.0 \\
-deph\_0.05 & mlp\_fisher & mlp\_fisher & 0.7 & 0.7 & 0.0 \\
+deph\_0.05 & mlp\_sm & mlp\_sm & 0.7 & 0.7 & 0.0 \\
 depol\_0.002 & lin\_mse & lin\_mse & -53.5 & -55.2 & -1.7 \\
 depol\_0.005 & mlp\_mse & mlp\_mse & -48.1 & -48.1 & 0.0 \\
 depol\_0.01 & lin\_mse & lin\_mse & -40.6 & -40.6 & 0.0 \\
-depol\_0.02 & lin\_mse & mlp\_fisher & -22.8 & -26.8 & -4.0 \\
+depol\_0.02 & lin\_mse & mlp\_sm & -22.8 & -26.8 & -4.0 \\
 readout\_0.01 & lin\_mse & lin\_mse & -52.4 & -52.4 & 0.0 \\
 readout\_0.02 & lin\_mse & lin\_mse & -53.5 & -53.5 & 0.0 \\
 readout\_0.03 & lin\_mse & lin\_mse & -54.1 & -54.1 & 0.0 \\
@@ -365,7 +365,7 @@ depol\_0.02 & lin\_mse & rich & $-22.8$ & $25.11$ & $[21.01,\,29.52]$ & $<\!10^{
 deph\_0.005 & lin\_mse & rich & $-38.7$ & $19.22$ & $[16.05,\,22.22]$ & $<\!10^{-4}$ & yes \\
 deph\_0.01 & lin\_mse & rich & $-34.4$ & $30.31$ & $[27.95,\,34.10]$ & $<\!10^{-4}$ & yes \\
 deph\_0.02 & mlp\_mse & rich & $-31.4$ & $34.30$ & $[30.46,\,38.32]$ & $<\!10^{-4}$ & yes \\
-deph\_0.05 & mlp\_fisher & rich & $0.7$ & $4.02$ & $[2.13,\,8.39]$ & $<\!10^{-4}$ & yes \\
+deph\_0.05 & mlp\_sm & rich & $0.7$ & $4.02$ & $[2.13,\,8.39]$ & $<\!10^{-4}$ & yes \\
 ampdamp\_0.002 & lin\_mse & poly1 & $-52.8$ & $12.87$ & $[8.08,\,18.08]$ & $<\!10^{-4}$ & yes \\
 ampdamp\_0.005 & lin\_mse & rich & $-54.4$ & $21.43$ & $[17.69,\,25.48]$ & $<\!10^{-4}$ & yes \\
 ampdamp\_0.01 & lin\_mse & rich & $-51.5$ & $25.00$ & $[20.27,\,29.51]$ & $<\!10^{-4}$ & yes \\

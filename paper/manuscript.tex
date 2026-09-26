@@ -88,10 +88,11 @@ the \emph{distribution} of measurement outcomes rather than on expectation
 values: a small parametric map, trained only on calibration data at known
 reference phases, pushes the noisy outcome distribution back toward the
 noiseless one before a frozen, already certified decoder reads out the estimate.
-The map acts on the collective population imbalance, so an $N$-qubit probe is
-described by $N+1$ numbers per phase instead of $2^N$ outcomes; a readout
-trained on all $2^N$ outcome probabilities is, measured against it in squared
-wrapped phase error, no more accurate.  A shot-aware objective adds the exact
+The map acts on the collective population imbalance, so an $N$-qubit probe needs
+$N+1$ numbers per phase instead of $2^N$ outcomes, and a readout trained on all
+$2^N$ outcome probabilities is no more accurate in squared wrapped phase error.
+A shot-aware
+objective adds the exact
 delta-method variance of the decoded estimate to the distribution-matching loss.
 On an eight-qubit variational interferometer with depolarizing, dephasing,
 amplitude-damping and readout noise at sixteen strengths, \dvaqem{} lowers the
