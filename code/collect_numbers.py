@@ -120,59 +120,128 @@ class Report:
 
 
 # ======================================================================
-# E1  exactness of the collective-imbalance reduction
+# E1  what the sector reduction costs, measured in SWPE
 # ======================================================================
+def _e1_pairs(rows, shots):
+    """(N, setting) -> {arm: row} for one shot budget, complete triples only."""
+    out = {}
+    for r in rows:
+        if str(r["shots"]) != str(shots):
+            continue
+        out.setdefault((r["N"], r["setting"]), {})[r["decoder"]] = r
+    return {k: v for k, v in out.items()
+            if {"sector", "full", "sector_frozen"} <= set(v)}
+
+
 def sec_e1(rep, res, tag):
-    rows = load(os.path.join(res, "e1_sufficiency.json"))
-    rep.h(2, "E1 -- sufficiency of the m-reduction: FI(p_m) vs FI(p_full)")
-    idx = index(rows, "N", "variant", "noise")
-    settings = list(dict.fromkeys(r["noise"] for r in rows))
-    rep.p(f"Ns = {sorted({r['N'] for r in rows})}, variants = "
-          f"{sorted({r['variant'] for r in rows})}, n_phi = {rows[0]['n_phi']}, "
-          f"rows = {len(rows)}")
-    rep.table(["N", "variant", "noise", "mean FI(p_full)", "mean FI(p_m)",
-               "CRB gap (dB)", "max rel dev", "max dev / mean FI"],
-              [[r["N"], r["variant"], r["noise"], f"{r['mean_FI_p_full']:.6f}",
-                f"{r['mean_FI_p_m']:.6f}", f"{r['crb_gap_db']:.3e}",
-                f"{r['max_rel_dev']:.3e}", f"{r['max_dev_norm']:.3e}"]
-               for r in rows])
-    # headline aggregates
-    noiseless = [r for r in rows if r["noise"] == "noiseless"]
-    noisy = [r for r in rows if r["noise"] != "noiseless"]
-    rep.p("**Headline aggregates**")
-    rep.p(f"- noiseless rows ({len(noiseless)}): worst |CRB gap| = "
-          f"{max(abs(r['crb_gap_db']) for r in noiseless):.3e} dB, worst "
-          f"max_rel_dev = {max(r['max_rel_dev'] for r in noiseless):.3e}")
-    rep.p(f"- noisy rows ({len(noisy)}): worst |CRB gap| = "
-          f"{max(abs(r['crb_gap_db']) for r in noisy):.3e} dB, worst "
-          f"max_rel_dev = {max(r['max_rel_dev'] for r in noisy):.3e}, worst "
-          f"normalised dev = {max(r['max_dev_norm'] for r in noisy):.3e}")
-    rep.set("e1_worst_crb_gap_db_noiseless",
-            max(abs(r["crb_gap_db"]) for r in noiseless))
-    rep.set("e1_worst_crb_gap_db_noisy",
-            max(abs(r["crb_gap_db"]) for r in noisy))
-    rep.set("e1_worst_rel_dev_noisy", max(r["max_rel_dev"] for r in noisy))
-    rep.set("e1_worst_norm_dev_noisy", max(r["max_dev_norm"] for r in noisy))
-    rep.p("worst CRB gap per noise setting (over N and trained/random):")
-    rep.table(["noise", "worst |CRB gap| dB", "worst max rel dev",
-               "mean FI(p_m) range"],
-              [[s, f"{max(abs(r['crb_gap_db']) for r in rows if r['noise']==s):.3e}",
-                f"{max(r['max_rel_dev'] for r in rows if r['noise']==s):.3e}",
-                f"{min(r['mean_FI_p_m'] for r in rows if r['noise']==s):.3f}"
-                f"--{max(r['mean_FI_p_m'] for r in rows if r['noise']==s):.3f}"]
-               for s in settings])
-    # grid-convergence control
-    conv_p = os.path.join(res, "e1_fi_convergence.json")
-    if os.path.exists(conv_p):
-        conv = load(conv_p)
-        rep.h(3, "E1b -- finite-difference grid convergence")
-        if isinstance(conv, list) and conv:
-            rep.table(sorted(conv[0].keys()),
-                      [[f"{v:.6g}" if isinstance(v, float) else v for v in
-                        [r[k] for k in sorted(conv[0].keys())]] for r in conv])
-        else:
-            rep.p("```json\n" + json.dumps(conv, indent=1)[:3000] + "\n```")
-    return idx
+    """Digest of ``e1_sufficiency_swpe.json`` (run_sufficiency_swpe.py).
+
+    The reduction from the 2^N outcome probabilities to the N+1 sector
+    probabilities is priced on the error scale the paper uses throughout.  Three
+    readout arms are compared on identical data: the certified sector decoder of
+    the checkpoint, a sector readout retrained under the matched protocol, and a
+    full-outcome readout retrained under that same protocol.  Gaps are
+    ``SWPE(full) - SWPE(arm)`` in dB, so a *positive* gap favours the reduced
+    representation.
+    """
+    path = os.path.join(res, "e1_sufficiency_swpe.json")
+    rep.h(2, "E1 -- what the sector reduction costs, measured in SWPE")
+    if not os.path.exists(path):
+        rep.p("e1_sufficiency_swpe.json not found: run "
+              "`code/run_sufficiency_swpe.py`")
+        return None
+    data = load(path)
+    rows = data["rows"]
+    Ns = sorted({r["N"] for r in rows})
+    settings = list(dict.fromkeys(r["setting"] for r in rows))
+    rep.p(f"Ns = {Ns}, settings = {len(settings)}, rows = {len(rows)}, shot "
+          f"budgets = {sorted({str(r['shots']) for r in rows}, key=str)}")
+    rep.p("arms: `sector_frozen` = the certified decoder actually deployed, "
+          "`sector` = sector readout retrained under the matched protocol, "
+          "`full` = readout consuming all 2^N outcome probabilities under that "
+          "same protocol.  gap = SWPE(full) - SWPE(arm); positive favours "
+          "sectors.")
+
+    # ---- matched training of the two readouts -----------------------------
+    rep.h(3, "E1a -- matched training of the two readouts")
+    rep.table(["N", "arm", "input width", "params", "x certified",
+               "best test loss", "best iter"],
+              [[t["N"], t["decoder"], t["n_in"], t["n_params"],
+                f"{t['param_ratio']:.2f}", f"{t['best_test_loss']:.3e}",
+                t["best_iter"]] for t in data["training"]])
+    for t in data["training"]:
+        rep.set(f"e1_params_{t['decoder']}_N{t['N']}", t["n_params"])
+        rep.set(f"e1_param_ratio_{t['decoder']}_N{t['N']}", t["param_ratio"])
+        rep.set(f"e1_floor_loss_{t['decoder']}_N{t['N']}", t["best_test_loss"])
+    # ---- paired gaps at every shot budget --------------------------------
+    for shots in ("inf", "256", "1024", "4096"):
+        pairs = _e1_pairs(rows, shots)
+        if not pairs:
+            continue
+        tagx = "inf" if shots == "inf" else f"S{shots}"
+        keys = sorted(pairs)
+        g_m = np.array([pairs[k]["full"]["mse_db"]
+                        - pairs[k]["sector"]["mse_db"] for k in keys])
+        g_c = np.array([pairs[k]["full"]["mse_db"]
+                        - pairs[k]["sector_frozen"]["mse_db"] for k in keys])
+        noisy = np.array([k[1] != "noiseless" for k in keys])
+        rep.h(3, f"E1b -- paired SWPE gaps at {tagx} ({len(keys)} pairs)")
+        rep.table(["N", "setting", "certified", "sector retrained", "full",
+                   "gap matched", "gap certified"],
+                  [[k[0], k[1],
+                    f"{pairs[k]['sector_frozen']['mse_db']:.2f}",
+                    f"{pairs[k]['sector']['mse_db']:.2f}",
+                    f"{pairs[k]['full']['mse_db']:.2f}",
+                    f"{g_m[i]:+.2f}", f"{g_c[i]:+.2f}"]
+                   for i, k in enumerate(keys)])
+        for lab, sel in (("all", np.ones(len(keys), bool)),
+                         ("noisy", noisy), ("noiseless", ~noisy)):
+            if not sel.any():
+                continue
+            for name, g in (("matched", g_m), ("certified", g_c)):
+                s = g[sel]
+                pre = f"e1_{tagx}_{name}_{lab}"
+                rep.set(f"{pre}_n", int(s.size))
+                rep.set(f"{pre}_mean_db", float(s.mean()))
+                rep.set(f"{pre}_median_db", float(np.median(s)))
+                rep.set(f"{pre}_min_db", float(s.min()))
+                rep.set(f"{pre}_max_db", float(s.max()))
+                rep.set(f"{pre}_full_better_n", int((s < 0).sum()))
+            rep.p(f"- {tagx} {lab:9s}: matched mean {g_m[sel].mean():+6.3f} "
+                  f"median {np.median(g_m[sel]):+6.3f} range "
+                  f"[{g_m[sel].min():+.3f},{g_m[sel].max():+.3f}], full ahead "
+                  f"in {int((g_m[sel] < 0).sum())}/{int(sel.sum())};  "
+                  f"certified mean {g_c[sel].mean():+6.3f} median "
+                  f"{np.median(g_c[sel]):+6.3f} range "
+                  f"[{g_c[sel].min():+.3f},{g_c[sel].max():+.3f}], full ahead "
+                  f"in {int((g_c[sel] < 0).sum())}/{int(sel.sum())}")
+        # per system size: the level at which the paper quotes the comparison
+        for N in Ns:
+            sel = np.array([k[0] == N for k in keys])
+            if not sel.any():
+                continue
+            rep.set(f"e1_{tagx}_matched_N{N}_mean_db", float(g_m[sel].mean()))
+            rep.set(f"e1_{tagx}_matched_N{N}_min_db", float(g_m[sel].min()))
+            rep.set(f"e1_{tagx}_matched_N{N}_max_db", float(g_m[sel].max()))
+            rep.set(f"e1_{tagx}_certified_N{N}_mean_db", float(g_c[sel].mean()))
+            rep.set(f"e1_{tagx}_certified_N{N}_min_db", float(g_c[sel].min()))
+            rep.set(f"e1_{tagx}_certified_N{N}_max_db", float(g_c[sel].max()))
+            rep.set(f"e1_{tagx}_certified_N{N}_full_better_n",
+                    int((g_c[sel] < 0).sum()))
+            rep.set(f"e1_{tagx}_certified_N{N}_n", int(sel.sum()))
+    # The noiseless rows sit at the clean-data fitting floor of each arm; the
+    # paper quotes the shallowest of them as the level below which every arm
+    # sits, so that those rows are not read as an accuracy statement.
+    nl = [r["mse_db"] for r in rows
+          if r["setting"] == "noiseless" and r["shots"] == "inf"]
+    if nl:
+        rep.set("e1_noiseless_worst_db", float(max(nl)))
+        rep.set("e1_noiseless_best_db", float(min(nl)))
+        rep.p(f"- noiseless rows at infinite shots: SWPE between {min(nl):.2f} "
+              f"and {max(nl):.2f} dB (the fitting floor of each arm)")
+    rep.set("e1_settings", len(settings))
+    rep.set("e1_Ns", len(Ns))
+    return rows
 
 
 # ======================================================================
@@ -1416,6 +1485,99 @@ def sec_ablation(rep, res, tag, root="ablations", name="coldstart"):
 
 
 # ======================================================================
+# Reduction, objectives and mechanism: the numbers the revised text quotes
+# ======================================================================
+def sec_reduction(rep, res, tag):
+    """Scalars behind the SWPE-only claims of the revised manuscript.
+
+    Three groups, all re-derived from the result files so that no number in the
+    prose is transcribed by hand:
+
+    * the per-phase SWPE panel of the concept figure (one noise setting);
+    * the ablation of the score-matching objective against plain cross-entropy
+      at the same map family, and which variants the held-out score selects;
+    * the bias/variance mechanism of the shot-aware refit, quoted as a factor
+      rather than as a decomposition figure.
+    """
+    rows = load(os.path.join(res, f"{tag}_sweep.json"))
+    meta = load(os.path.join(res, f"{tag}_sweep_meta.json"))
+    inf = [r for r in rows if r["shots"] == "inf"]
+    idx = index(inf, "method", "setting")
+
+    # ---- concept figure, panel (c): one setting, three families -----------
+    rep.h(3, "Concept figure panel (c): per-phase SWPE at one setting")
+    s0 = "depol_0.01"
+    best = meta[s0]["best_dvaqem"]
+    for name, m in (("noiseless", "noiseless"), ("unmit", "none"),
+                    ("mit", best)):
+        r = one(idx, m, s0)
+        e2 = np.asarray(r["err2"], dtype=float)
+        db = 10 * np.log10(e2 + 1e-12)
+        rep.set(f"fig1c_{name}_db", r["mse_db"])
+        rep.set(f"fig1c_{name}_worst_db", float(db.max()))
+        rep.set(f"fig1c_{name}_best_db", float(db.min()))
+        rep.p(f"- {s0} {name:10s} ({m}): mean {r['mse_db']:.2f} dB, per-phase "
+              f"[{db.min():.2f},{db.max():.2f}] dB")
+    rep.set("uniform_guess_db", float(10 * np.log10(np.pi ** 2 / 3)))
+    rep.p(f"- a uniform guess over [-pi,pi) scores "
+          f"{10 * np.log10(np.pi ** 2 / 3):.2f} dB (MSE = pi^2/3)")
+    # the same reference level is quoted for the two settings where the
+    # unmitigated estimator has lost its phase response altogether
+    for s in ("deph_0.05",):
+        r = one(idx, "none", s)
+        rep.set(f"unmit_db_{s.replace('.', 'p')}", r["mse_db"])
+        rep.p(f"- {s}: unmitigated {r['mse_db']:.2f} dB")
+
+    # ---- score-matching objective versus plain cross-entropy --------------
+    rep.h(3, "Objectives: score matching against plain cross-entropy")
+    settings = setting_sort({r["setting"] for r in inf})
+    arm, ref = "dvaqem_mlp_fisher", "dvaqem_mlp_ce"
+    adv = np.array([one(idx, ref, s)["mse_db"] - one(idx, arm, s)["mse_db"]
+                    for s in settings])
+    rep.set("obj_n_settings", len(settings))
+    rep.set("obj_score_vs_ce_identical_n", int((adv == 0).sum()))
+    rep.set("obj_score_vs_ce_better_n", int((adv > 0).sum()))
+    rep.set("obj_score_vs_ce_mean_db", float(adv.mean()))
+    rep.set("obj_score_vs_ce_worst_db", float(adv.min()))
+    rep.p(f"- {arm} vs {ref} over {len(settings)} settings: identical in "
+          f"{int((adv == 0).sum())}, better in {int((adv > 0).sum())}, mean "
+          f"{adv.mean():+.2f} dB, worst {adv.min():+.2f} dB")
+    sel = {}
+    for s in settings:
+        b = one(idx, "none", s)["best_dvaqem"]
+        sel[b] = sel.get(b, 0) + 1
+    for k, v in sorted(sel.items()):
+        rep.set(f"obj_selected_{k.replace('dvaqem_', '')}", v)
+        rep.p(f"- holdout-selected: {k} in {v} settings")
+    rep.set("obj_shotaware_selected_n",
+            int(sum(v for k, v in sel.items() if k.endswith("_mse"))))
+
+    # ---- mechanism of the shot-aware refit --------------------------------
+    rep.h(3, "Shot-aware refit: bias and variance terms at one setting")
+    e3 = load(os.path.join(res, "e3_shots.json"))
+    sub = {(r["method"], r["shots"]): r for r in e3
+           if r["setting"] == s0 and r["method"] in ("dvaqem_mlp_mse",
+                                                     "dvaqem_mlp_ce")}
+    shots = sorted({k[1] for k in sub})
+    lo, hi = shots[0], shots[-1]
+    b_lo = sub[("dvaqem_mlp_mse", lo)]["bias2"]
+    b_hi = sub[("dvaqem_mlp_mse", hi)]["bias2"]
+    var_dev = max(abs(sub[("dvaqem_mlp_mse", S)]["var_over_S"]
+                      - sub[("dvaqem_mlp_ce", S)]["var_over_S"])
+                  / sub[("dvaqem_mlp_ce", S)]["var_over_S"] for S in shots)
+    rep.set("e3_bias2_low_shot", b_lo)
+    rep.set("e3_bias2_high_shot", b_hi)
+    rep.set("e3_bias_ratio", b_lo / b_hi)
+    rep.set("e3_var_maxdev_pct", 100 * var_dev)
+    rep.set("e3_shot_lo", lo)
+    rep.set("e3_shot_hi", hi)
+    rep.p(f"- {s0}: squared bias of the shot-aware map {b_lo:.3e} at S={lo} -> "
+          f"{b_hi:.3e} at S={hi} (factor {b_lo / b_hi:.1f}); the variance term "
+          f"differs from the shot-independent map by at most "
+          f"{100 * var_dev:.2f}% at any budget")
+
+
+# ======================================================================
 def main():
     ap = argparse.ArgumentParser(description="digest the D-VAQEM results")
     ap.add_argument("--tag", default="final")
@@ -1440,6 +1602,7 @@ def main():
               "seed", "n_oracle", "workers", "total_s"):
         rep.set(f"cfg_{k}", man.get(k))
     sec_e1(rep, res, a.tag)
+    sec_reduction(rep, res, a.tag)
     idx_inf, settings, meta, rows = sec_e2(rep, res, a.tag)
     sec_e2b(rep, idx_inf, settings, meta, rows)
     sec_ci(rep, res, a.tag, n_boot=a.n_boot, seed=a.boot_seed, conf=a.conf)

@@ -5,7 +5,7 @@
 % (target ``toc``) from the headline sweep.
 \documentclass[11pt]{article}
 \usepackage{graphicx}
-\graphicspath{{../figures/}{figures/}}
+\graphicspath{{./}{../figures/}{figures/}}
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
 \begin{document}
@@ -16,7 +16,7 @@ Calibrated quantum sensors lose accuracy when hardware noise distorts the
 statistics their decoder inverts.  A small variational map, trained only on
 calibration data at known phases, restores the noisy outcome distribution
 before a frozen decoder reads out the phase.  Across four noise channels it
-cuts the mean squared phase error by up to 33 decibels, outperforming
+cuts the squared wrapped phase error by up to 33 decibels, outperforming
 zero-noise extrapolation.
 
 \vfill

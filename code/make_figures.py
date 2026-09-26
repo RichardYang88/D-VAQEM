@@ -73,9 +73,9 @@ METHODS = {
     "dvaqem_lin_ce":  ("D-VAQEM linear, cross-entropy", "#cab2d6", "H", 3),
     "dvaqem_lin_l2":  ("D-VAQEM linear, $\\ell_2$", "#a0a0a0", "d", 3),
     "dvaqem_mlp_l2":  ("D-VAQEM MLP, $\\ell_2$", "#d9d9d9", "p", 3),
-    "dvaqem_mlp_fisher": ("D-VAQEM MLP, Fisher", "#2ca02c", "8", 4),
+    "dvaqem_mlp_fisher": ("D-VAQEM MLP, CE+score matching", "#2ca02c", "8", 4),
     "oracle_ml":      ("oracle (known noise)", "#000000", "x", 2),
-    "noiseless":      ("noiseless floor", "#333333", None, 1),
+    "noiseless":      ("noiseless floor", "#000000", None, 1),
 }
 CHANNELS = (("depol", "depolarizing", "$p$"),
             ("deph", "dephasing", "$p$"),
@@ -177,13 +177,13 @@ def schematic(ax):
                                              fc=fc, ec=ec, lw=0.8), **kw)
 
     n1 = node(0.13, 0.87, "unknown\nphase $\\phi$", "#fff6e5", "#a07020")
-    n2 = node(0.48, 0.87, "probe circuit\n$U_R(\\phi;\\theta,\\vartheta)$\n"
+    n2 = node(0.48, 0.87, "probe circuit\n$U_R(\\phi;\\theta,\\psi)$\n"
                           "$N$ qubits", "#eef3fb", "#33587a")
     n3 = node(0.85, 0.87, "sector reduction\n$\\mathbf{p}_m\\in\\Delta^{N}$\n"
                           "$N{+}1$ numbers", "#e8f5e9", "#2e6b34")
     n4 = node(0.85, 0.53, "noisy device\n$\\mathbf{y}=\\mathcal{N}_\\phi"
                           "[\\mathbf{p}_m]$", "#fdecea", "#8c2f26")
-    n5 = node(0.48, 0.53, "D-VAQEM map\n$\\tilde{\\mathbf{p}}=M_\\psi(\\mathbf{y})$\n"
+    n5 = node(0.48, 0.53, "D-VAQEM map\n$\\tilde{\\mathbf{p}}=M_\\omega(\\mathbf{y})$\n"
                           "$(N{+}1)^2$ params", "#e7eefb", "#1f4e9c")
     n6 = node(0.13, 0.53, "frozen decoder\n$\\hat\\phi=D_{\\mathbf{w}}"
                           "(\\tilde{\\mathbf{p}})$", "#f3e8fb", "#5b2a86")
@@ -191,7 +191,7 @@ def schematic(ax):
                           "$i=1\\dots n_{\\rm cal}$", "#fff6e5", "#a07020")
     n8 = node(0.48, 0.15, "noiseless model\n$\\mathbf{t}(\\phi_i)$\n"
                           "(classical)", "#e8f5e9", "#2e6b34")
-    n9 = node(0.85, 0.15, "fit $\\psi$ on\n$\\mathcal{L}_{\\rm CE} + "
+    n9 = node(0.85, 0.15, "fit $\\omega$ on\n$\\mathcal{L}_{\\rm CE} + "
                           "\\mathrm{Var}_S[\\hat\\phi]$\n(calibration only)",
               "#e7eefb", "#1f4e9c")
     for a, b in ((n1, n2), (n2, n3), (n3, n4), (n4, n5), (n5, n6), (n7, n8),
@@ -237,8 +237,14 @@ def fig1(tag, res, out, dpi):
     meta = load(f"{tag}_sweep_meta.json", res)
     setting, noise = "depol_0.01", {"kind": "depolarizing", "p": 0.01,
                                     "readout_p": 0.0}
-    cur = np.load(os.path.join(res, f"{tag}_fi_curves.npz"))
-    grid = cur[f"{setting}__grid"]
+    # Panel (c) plots the per-phase error of the three families on the sweep's
+    # own held-out test grid; the grid is stored with the sweep metadata under a
+    # key whose name is a historical artifact of the result file.
+    grid = np.asarray(meta[setting].get(
+        "phase_grid", meta[setting].get("fi_grid")), dtype=float)
+    if grid.size == 0:                                      # pragma: no cover
+        raise RuntimeError("fig1 panel c needs the evaluation phase grid in "
+                           f"{tag}_sweep_meta.json")
     # Panel b needs the exact dataset (rx.load_model -> the VQ-CNNI checkpoint,
     # located by vl.vqcnni_root()) and the stored linear-map parameters.  This
     # used to degrade silently to a two-panel figure when either was missing,
@@ -275,7 +281,7 @@ def fig1(tag, res, out, dpi):
                  label="noiseless $\\mathbf{p}_m$")
         ax1.plot(m, noisy, "-s", color="#d62728", ms=2.6, label="noisy $\\mathbf{y}$")
         ax1.plot(m, mit, "--*", color="#1f78b4", ms=4.4,
-                 label="mitigated $M_\\psi(\\mathbf{y})$")
+                 label="mitigated $M_\\omega(\\mathbf{y})$")
         ax1.set_xlabel("collective imbalance $m$")
         ax1.set_ylabel("probability")
         ax1.set_yscale("log")
@@ -285,17 +291,27 @@ def fig1(tag, res, out, dpi):
     panel(ax1, "b")
     if ncol == 3:
         ax2 = fig.add_subplot(inner[0, 1])
-        for key, lab, c, ls in (("fi_clean", "clean $F(\\mathbf{p}_m)$",
-                                 "#2ca02c", "-"),
-                                ("fi_noisy", "noisy $F(\\mathbf{y})$",
-                                 "#d62728", "-"),
-                                ("fi_mitigated", "mitigated $F(M_\\psi)$",
-                                 "#1f78b4", "--")):
-            ax2.plot(grid, cur[f"{setting}__{key}"], ls, color=c, label=lab)
-        ax2.set_yscale("log")
+        # Per-phase squared wrapped phase error of the three families that
+        # panel (b) shows as distributions: the same estimator on noiseless
+        # data, on the noisy device, and after the map.  Everything is on the
+        # decibel scale the rest of the paper uses.
+        inf = index([r for r in load(f"{tag}_sweep.json", res)
+                     if r["shots"] == "inf" and r["setting"] == setting],
+                    "method")
+        best = meta[setting]["best_dvaqem"]
+        for m, lab, c, ls, mk in (
+                ("noiseless", "noiseless data", "#2ca02c", "-", "o"),
+                ("none", "noisy device", "#d62728", "-", "s"),
+                (best, "mitigated $M_\\omega(\\mathbf{y})$", "#1f78b4",
+                 "--", "*")):
+            e2 = np.asarray(one(inf, m)["err2"], dtype=float)
+            ax2.plot(grid, 10 * np.log10(e2 + 1e-12), ls + mk, color=c,
+                     ms=2.8, lw=1.0, label=lab)
         ax2.set_xlabel("phase $\\phi$ [rad]")
-        ax2.set_ylabel("classical Fisher information")
-        ax2.legend(frameon=False, loc="upper right", handlelength=1.7)
+        ax2.set_ylabel("SWPE [dB]")
+        ax2.legend(frameon=False, loc="lower center", handlelength=1.7,
+                   fontsize=6.2, ncol=1)
+        ax2.grid(axis="y", lw=0.3, color="#dddddd")
         panel(ax2, "c")
     save(fig, "fig1_concept", out, dpi)
 
@@ -304,70 +320,93 @@ def fig1(tag, res, out, dpi):
 # Fig. 2  E1: exactness of the sector reduction
 # ======================================================================
 def fig2(tag, res, out, dpi):
-    rows = load("e1_sufficiency.json", res)
-    col = {"noiseless": "#2ca02c", "readout_0.03": "#1f78b4",
-           "depol_0.002": "#fd8d3c", "depol_0.01": "#e31a1c",
-           "depol_0.02": "#6a3d9a"}
-    fig, axes = plt.subplots(1, 3, figsize=(DOUBLE, 2.2))
-    fig.subplots_adjust(wspace=0.40)
-    ax = axes[0]
-    seen = set()
+    """What the sector reduction costs, measured in SWPE.
+
+    Reads ``e1_sufficiency_swpe.json`` (``code/run_sufficiency_swpe.py``): for
+    every system size two readouts are trained on the same frozen probe under an
+    identical protocol, one consuming all $2^N$ outcome probabilities and one
+    consuming only the $N+1$ sector probabilities; the certified decoder of the
+    checkpoint is evaluated as a third arm.  Everything is on the decibel scale
+    of the rest of the paper.
+    """
+    data = load("e1_sufficiency_swpe.json", res)
+    rows = data["rows"]
+    pair = {}
     for r in rows:
-        lab = r["noise"]
-        c = col.get(lab, "#888888")
-        ax.plot(r["mean_FI_p_full"], r["mean_FI_p_m"], "o", ms=3.2, color=c,
-                label=lab.replace("_", " ") if lab not in seen else None,
-                markerfacecolor=("none" if r["variant"] == "random" else c),
-                mew=0.9)
-        seen.add(lab)
-    lo = min(r["mean_FI_p_full"] for r in rows) * 0.6
-    hi = max(r["mean_FI_p_full"] for r in rows) * 1.5
-    ax.plot([lo, hi], [lo, hi], "k:", lw=0.8)
-    ax.set_xscale("log")
-    ax.set_yscale("log")
+        if r["shots"] != "inf":
+            continue
+        pair.setdefault((r["N"], r["setting"]), {})[r["decoder"]] = r
+    colN = {4: "#1f78b4", 6: "#33a02c", 8: "#e31a1c", 10: "#6a3d9a"}
+    ARM = (("sector", "sector readout, $N{+}1$ numbers", "#1f78b4", "-", "o"),
+           ("full", "full-outcome readout, $2^N$ numbers", "#d62728", "-", "s"),
+           ("sector_frozen", "certified decoder (deployed)", "#333333",
+            "--", "^"))
+    fig, axes = plt.subplots(1, 3, figsize=(DOUBLE, 2.45))
+    fig.subplots_adjust(wspace=0.44)
+
+    # ---- (a) the two matched readouts against each other ------------------
+    ax = axes[0]
+    for N in sorted(colN):
+        xs = [p["full"]["mse_db"] for (n, _), p in sorted(pair.items())
+              if n == N and {"sector", "full"} <= set(p)]
+        ys = [p["sector"]["mse_db"] for (n, _), p in sorted(pair.items())
+              if n == N and {"sector", "full"} <= set(p)]
+        if xs:
+            ax.plot(xs, ys, "o", ms=3.6, color=colN[N], mfc="none", mew=1.1,
+                    label=f"$N={N}$")
+    lo, hi = -75.0, 8.0
+    ax.plot([lo, hi], [lo, hi], "k:", lw=0.9)
     ax.set_xlim(lo, hi)
     ax.set_ylim(lo, hi)
-    ax.set_xlabel("$F(\\mathbf{p}_{\\rm full})$")
-    ax.set_ylabel("$F(\\mathbf{p}_m)$")
+    ax.set_xlabel("full-outcome readout: SWPE [dB]")
+    ax.set_ylabel("sector readout: SWPE [dB]")
     ax.legend(frameon=False, loc="upper left", fontsize=6.0, handletextpad=0.3,
-              title="noise (filled: trained, open: random)", title_fontsize=5.8)
+              title="below the diagonal: sectors ahead", title_fontsize=5.6)
+    ax.grid(lw=0.3, color="#dddddd")
     panel(ax, "a")
 
+    # ---- (b) the gap as a function of the depolarizing rate ---------------
     ax = axes[1]
-    dep = [r for r in rows if r["kind"] == "depolarizing"]
-    for N, mk in ((4, "o"), (6, "s"), (8, "^"), (10, "D")):
-        for var, ls in (("trained", "-"), ("random", ":")):
-            sub = sorted((r for r in dep if r["N"] == N and r["variant"] == var),
-                         key=lambda r: r["p"])
-            if not sub:
-                continue
-            ax.plot([r["p"] for r in sub], [r["crb_gap_db"] for r in sub],
-                    ls + mk, ms=3.0, color=plt.cm.viridis((N - 4) / 6.0),
-                    label=f"N={N}" if var == "trained" else None)
-    ax.axhline(0, color="k", lw=0.6)
+    for N in sorted(colN):
+        sub = sorted((k for k in pair
+                      if k[0] == N and k[1].startswith("depol")),
+                     key=lambda k: float(k[1].rsplit("_", 1)[1]))
+        if not sub:
+            continue
+        xs = [float(k[1].rsplit("_", 1)[1]) for k in sub]
+        gm = [pair[k]["full"]["mse_db"] - pair[k]["sector"]["mse_db"]
+              for k in sub]
+        gc = [pair[k]["full"]["mse_db"] - pair[k]["sector_frozen"]["mse_db"]
+              for k in sub]
+        ax.plot(xs, gm, "-o", ms=3.0, lw=1.1, color=colN[N], label=f"$N={N}$")
+        ax.plot(xs, gc, ":^", ms=3.0, lw=0.9, color=colN[N])
+    ax.axhline(0, color="k", lw=0.7)
     ax.set_xscale("log")
     ax.set_xlabel("depolarizing rate $p$ per gate")
-    ax.set_ylabel("CRB penalty $\\Delta_{\\rm CRB}$ [dB]")
-    ax.legend(frameon=False, loc="upper left", fontsize=6.0)
+    ax.set_ylabel("SWPE(full) $-$ SWPE(sectors) [dB]")
+    ax.legend(frameon=False, loc="best", fontsize=5.8, ncol=2,
+              title="solid: matched arms\ndotted: certified decoder",
+              title_fontsize=5.4)
+    ax.grid(lw=0.3, color="#dddddd")
     panel(ax, "b")
 
+    # ---- (c) the three arms against system size ---------------------------
     ax = axes[2]
-    Ns = sorted({r["N"] for r in rows})
-    for lab, c, mk in (("noiseless", "#2ca02c", "o"),
-                       ("readout_0.03", "#1f78b4", "s"),
-                       ("depol_0.01", "#e31a1c", "^")):
-        sub = [r for r in rows if r["noise"] == lab and r["variant"] == "trained"]
-        sub = sorted(sub, key=lambda r: r["N"])
-        ax.plot([r["N"] for r in sub], [r["mean_FI_p_m"] for r in sub], "-" + mk,
-                color=c, ms=3.4, label=lab.replace("_", " "))
-        ax.plot([r["N"] for r in sub], [r["mean_FI_p_full"] for r in sub],
-                ":", color=c, lw=0.9)
-    ax.set_yscale("log")
+    setting = "depol_0.01"
+    Ns = sorted(k[0] for k in pair if k[1] == setting)
+    for arm, lab, c, ls, mk in ARM:
+        sub = [(n, pair[(n, setting)][arm]) for n in Ns
+               if (n, setting) in pair and arm in pair[(n, setting)]]
+        if not sub:
+            continue
+        ax.plot([n for n, _ in sub], [r["mse_db"] for _, r in sub], ls + mk,
+                color=c, ms=3.4, lw=1.1, label=lab)
     ax.set_xlabel("qubit number $N$")
-    ax.set_ylabel("mean Fisher information")
+    ax.set_ylabel("SWPE [dB]")
     ax.set_xticks(Ns)
-    ax.legend(frameon=False, loc="lower left", fontsize=6.0)
-    panel(ax, "c")
+    ax.legend(frameon=False, loc="lower left", fontsize=5.6, handletextpad=0.4)
+    ax.grid(lw=0.3, color="#dddddd")
+    panel(ax, "c", "depolarizing $p=0.01$")
     save(fig, "fig2_sufficiency", out, dpi)
 
 
@@ -384,6 +423,16 @@ def fig3(tag, res, out, dpi):
     gs = fig.add_gridspec(2, 4, hspace=0.45, wspace=0.42,
                           height_ratios=[1.15, 1.0])
     nl = one(inf, "noiseless", list(inf["noiseless"])[0])["mse_db"]
+    # One legend for the whole figure, assembled from the curves that are
+    # *actually drawn* in any panel: a handle list taken from a single panel
+    # (the previous behaviour) labelled curves that only exist in another
+    # panel, and left the ones missing from that panel unlabelled.
+    legend = {}
+
+    def track(axx):
+        for h, l in zip(*axx.get_legend_handles_labels()):
+            legend.setdefault(l, h)
+
     for k, (ch, cname, sym) in enumerate(CHANNELS):
         ax = fig.add_subplot(gs[0, k])
         pts = settings.get(ch, [])
@@ -402,27 +451,32 @@ def fig3(tag, res, out, dpi):
                 continue
             ax.plot(xs, ys, "-" + (mk or "o"), color=c, ms=3.2, lw=0.9,
                     label=lab, zorder=z)
-        ax.axhline(nl, color="#333333", ls="--", lw=0.8)
+        ax.axhline(nl, color="#000000", ls="--", lw=0.9,
+                    label=METHODS["noiseless"][0])
         ax.set_xscale("log")
         ax.set_xlabel(f"{cname} {sym}", labelpad=1.0)
         if k == 0:
-            ax.set_ylabel("MSE [dB]")
+            ax.set_ylabel("SWPE [dB]")
         ax.set_xticks(xs)
         ax.set_xticklabels([f"{x:g}" for x in xs], fontsize=6.2)
         ax.xaxis.set_minor_formatter(NullFormatter())
         ax.set_title(cname, fontsize=7.4, loc="left")
         panel(ax, "abcd"[k])
         ax.grid(axis="y", lw=0.3, color="#dddddd")
-        if k == 0:
-            hand, labl = ax.get_legend_handles_labels()
+        track(ax)
     # (e) shot-budget dependence, averaged over all settings
     ax = fig.add_subplot(gs[1, 0:2])
     keys = [k for k in ("inf", "S256", "S1024", "S4096")
             if any(r["shots"] == k for r in rows)]
     xlab = ["$\\infty$", "256", "1024", "4096"]
     allset = sorted({r["setting"] for r in rows})
-    for m in ("none", "zne_rich", "retrain_dec", "dvaqem", "oracle_ml",
-              "noiseless"):
+    for m in ("none", "zne_rich", "zne_poly1", "zne_poly2", "retrain_dec",
+              "dvaqem", "oracle_ml", "noiseless"):
+        # The exact sector inverse is deliberately absent here: it is defined on
+        # only 8 of the 16 settings (the flip-equivalent channels), so an
+        # "average over all settings" for it would silently average over a
+        # different population than the other curves.  It is labelled in panels
+        # (a) and (d), where it exists, and the shared legend below carries it.
         lab, c, mk, z = METHODS[m]
         ys = []
         for key in keys:
@@ -435,15 +489,18 @@ def fig3(tag, res, out, dpi):
                 vals = [one(sel, m, s)["mse_db"] for s in allset
                         if m in sel and s in sel[m]]
             ys.append(float(np.mean(vals)))
-        ax.plot(range(len(keys)), ys, "-" + (mk or "o"), color=c, ms=3.4,
-                label=lab, zorder=z)
+        # a method with no marker (the noiseless floor) is drawn dashed, so that
+        # it cannot be mistaken for the unmitigated curve of the same darkness
+        ax.plot(range(len(keys)), ys, "--" if mk is None else "-" + mk,
+                color=c, ms=3.4, lw=1.1, label=lab, zorder=z)
     ax.set_xticks(range(len(keys)))
     ax.set_xticklabels(xlab)
     ax.set_xlabel("shot budget $S$")
-    ax.set_ylabel("mean MSE [dB]")
+    ax.set_ylabel("mean SWPE [dB]")
     ax.set_title("mean over all 16 settings", fontsize=7.4, loc="left")
     panel(ax, "e")
     ax.grid(axis="y", lw=0.3, color="#dddddd")
+    track(ax)
     # (f) per-setting gain waterfall
     ax = fig.add_subplot(gs[1, 2:4])
     order = sorted(allset, key=lambda s: -(one(inf, "none", s)["mse_db"] -
@@ -463,52 +520,62 @@ def fig3(tag, res, out, dpi):
     ax.set_xticks(x)
     ax.set_xticklabels([s.replace("_", " ") for s in order], fontsize=5.0,
                        rotation=55, ha="right", rotation_mode="anchor")
-    ax.set_ylabel("MSE reduction vs\nunmitigated [dB]")
+    ax.set_ylabel("SWPE reduction vs\nunmitigated [dB]")
     ax.set_title("D-VAQEM gain per noise setting", fontsize=7.4, loc="left")
     panel(ax, "f")
     ax.legend(frameon=False, loc="upper right", fontsize=6.2, ncol=2)
     ax.grid(axis="y", lw=0.3, color="#dddddd")
-    fig.subplots_adjust(bottom=0.20)
-    fig.legend(hand, labl, loc="lower center", ncol=4, frameon=False,
-               fontsize=6.2, handlelength=1.7, columnspacing=1.2,
-               bbox_to_anchor=(0.5, 0.0))
+    track(ax)
+    fig.subplots_adjust(bottom=0.22)
+    fig.legend(list(legend.values()), list(legend.keys()), loc="lower center",
+               ncol=5, frameon=False, fontsize=6.2, handlelength=1.9,
+               columnspacing=1.1, handletextpad=0.5, bbox_to_anchor=(0.5, 0.0))
     save(fig, "fig3_sweep", out, dpi)
 
 # ======================================================================
 # Fig. 4  E3: finite-shot theory -- delta method and the shot-aware map
 # ======================================================================
 def fig4(tag, res, out, dpi):
+    """Finite shots: the delta-method prediction and the shot-aware refit.
+
+    A single row of three panels.  The earlier 2x2 layout placed panel (c)
+    directly underneath panel (a) with both legends hanging below their axes,
+    which is what made the figure read as crowded; the bias/variance
+    decomposition it carried is dropped, because the paper reports one
+    performance scale -- the SWPE -- and the analytic curve in (a) already *is*
+    the predicted total bias^2 + Var_S on that scale.
+    """
     rows = load("e3_shots.json", res)
     idx = index(rows, "setting", "method", "shots")
     settings = list(dict.fromkeys(r["setting"] for r in rows))
     shots = sorted({r["shots"] for r in rows})
-    fig, axes = plt.subplots(2, 2, figsize=(DOUBLE, 4.2))
-    fig.subplots_adjust(hspace=0.68, wspace=0.32)
+    fig, axes = plt.subplots(1, 3, figsize=(DOUBLE, 2.5))
+    fig.subplots_adjust(wspace=0.34, left=0.06, right=0.995, bottom=0.34,
+                        top=0.82)
 
-    ax, s0 = axes[0, 0], settings[0]
+    ax, s0 = axes[0], settings[0]
     for m in ("none", "zne_poly1", "dvaqem_mlp_ce", "dvaqem_mlp_mse",
               "retrain_dec"):
         lab, c, mk, z = METHODS.get(m, (m, "#888888", "o", 3))
         mc = [one(idx, s0, m, S)["mc_mse"] for S in shots]
         sd = [one(idx, s0, m, S)["mc_mse_std"] for S in shots]
         ax.errorbar(shots, mc, yerr=sd, fmt="-" + (mk or "o"), color=c, ms=3.2,
-                    lw=1.0, capsize=1.4, label=lab + " (MC)", zorder=z)
+                    lw=1.0, capsize=1.4, label=lab, zorder=z)
         an = [one(idx, s0, m, S).get("analytic_mse") for S in shots]
         if any(a is not None for a in an):
             ax.plot(shots, [a if a is not None else np.nan for a in an], ":",
-                    color=c, lw=1.1, zorder=z)
+                    color=c, lw=1.2, zorder=z)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("shot budget $S$")
-    ax.set_ylabel("mean squared phase error")
+    ax.set_ylabel("SWPE")
     ax.set_xticks(shots)
     ax.set_xticklabels([str(S) for S in shots], fontsize=6.0)
-    ax.legend(frameon=False, fontsize=5.7, loc="upper center", ncol=2,
-              handlelength=1.8, bbox_to_anchor=(0.5, -0.22), columnspacing=1.0)
     ax.grid(lw=0.3, color="#dddddd", which="both")
     panel(ax, "a", s0.replace("_", " "))
+    hand, labl = ax.get_legend_handles_labels()
 
-    ax = axes[0, 1]
+    ax = axes[1]
     colm = {"none": "#444444", "zne_poly1": "#7fc97f",
             "dvaqem_mlp_ce": "#b15928", "dvaqem_mlp_mse": "#1f78b4"}
     for m, c in colm.items():
@@ -519,33 +586,14 @@ def fig4(tag, res, out, dpi):
     ax.axhspan(0.9, 1.1, color="#eeeeee", zorder=0)
     ax.set_xscale("log")
     ax.set_xlabel("shot budget $S$")
-    ax.set_ylabel("Monte Carlo / analytic MSE")
+    ax.set_ylabel("Monte Carlo / analytic SWPE")
     ax.set_ylim(0.8, 2.2)
-    ax.legend(frameon=False, fontsize=6.0, loc="upper right")
-    ax.set_title("delta-method validation, all 3 settings", fontsize=7.4,
-                 loc="left")
-    panel(ax, "b")
-
-    ax = axes[1, 0]
-    for m, c in (("dvaqem_mlp_ce", "#b15928"), ("dvaqem_mlp_mse", "#1f78b4")):
-        b = np.array([one(idx, s0, m, S)["bias2"] for S in shots])
-        v = np.array([one(idx, s0, m, S)["var_over_S"] for S in shots])
-        lab = METHODS[m][0]
-        ax.plot(shots, b, "-", color=c, lw=1.1, label=f"{lab}: bias$^2$")
-        ax.plot(shots, v, "--", color=c, lw=1.0, label=f"{lab}: variance")
-        ax.plot(shots, b + v, ":", color=c, lw=1.3, label=f"{lab}: total")
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xlabel("shot budget $S$")
-    ax.set_ylabel("MSE contributions")
     ax.set_xticks(shots)
     ax.set_xticklabels([str(S) for S in shots], fontsize=6.0)
-    ax.legend(frameon=False, fontsize=5.7, loc="upper center", ncol=2,
-              handlelength=1.8, bbox_to_anchor=(0.5, -0.22), columnspacing=1.0)
-    ax.grid(lw=0.3, color="#dddddd", which="both")
-    panel(ax, "c", "bias/variance split (analytic)")
+    ax.legend(frameon=False, fontsize=5.8, loc="upper left", handletextpad=0.4)
+    panel(ax, "b", "delta-method validation, all 3 settings")
 
-    ax = axes[1, 1]
+    ax = axes[2]
     for s, c in zip(settings, ("#e31a1c", "#ff7f00", "#1f78b4")):
         d = [10 * np.log10(one(idx, s, "dvaqem_mlp_ce", S)["mc_mse"] /
                            one(idx, s, "dvaqem_mlp_mse", S)["mc_mse"])
@@ -557,9 +605,12 @@ def fig4(tag, res, out, dpi):
     ax.set_ylabel("shot-aware gain [dB]")
     ax.set_xticks(shots)
     ax.set_xticklabels([str(S) for S in shots], fontsize=6.0)
-    ax.legend(frameon=False, fontsize=6.0, loc="upper left")
+    ax.legend(frameon=False, fontsize=5.8, loc="upper left", handletextpad=0.4)
     ax.grid(lw=0.3, color="#dddddd")
-    panel(ax, "d", "shot-aware refit vs shot-independent map")
+    panel(ax, "c", "shot-aware refit vs shot-independent map")
+    fig.legend(hand, labl, loc="lower center", ncol=5, frameon=False,
+               fontsize=6.0, handlelength=2.0, columnspacing=1.0,
+               handletextpad=0.5, bbox_to_anchor=(0.5, 0.02))
     save(fig, "fig4_finite_shots", out, dpi)
 
 
@@ -592,7 +643,7 @@ def fig5(tag, res, out, dpi):
                 lw=1.2 if m == "dvaqem" else 0.9, label=lab, zorder=z)
         ax.plot(Ns, yinf, ":", color=c, lw=0.8, zorder=z)
     ax.set_xlabel("qubit number $N$")
-    ax.set_ylabel("MSE [dB]")
+    ax.set_ylabel("SWPE [dB]")
     ax.set_xticks(Ns)
     ax.set_title("depolarizing $p=0.01$", fontsize=6.6, loc="left")
     ax.legend(frameon=False, fontsize=5.7, loc="upper center", ncol=2,
@@ -676,7 +727,7 @@ def fig6(tag, res, out, dpi):
         ax.set_xlabel(xname)
         ax.grid(lw=0.3, color="#dddddd")
         if axis == "n_cal":
-            ax.set_ylabel(f"MSE [dB], evaluated at {skey[1:]} shots")
+            ax.set_ylabel(f"SWPE [dB], evaluated at {skey[1:]} shots")
             hand, labl = ax.get_legend_handles_labels()
     panel(axes[0], "a", "how many calibration phases?")
     panel(axes[1], "b", "how precise must the targets be?")
@@ -692,7 +743,7 @@ def fig6(tag, res, out, dpi):
 # \include'd in the manuscript body, so it carries no panel letter.
 # ======================================================================
 def fig_toc(tag, res, out, dpi):
-    """The headline result in one small panel: mean MSE versus shot budget."""
+    """The headline result in one small panel: mean SWPE versus shot budget."""
     rows = load(f"{tag}_sweep.json", res)
     inf = index([r for r in rows if r["shots"] == "inf"], "method", "setting")
     keys = [k for k in ("inf", "S256", "S1024", "S4096")
@@ -713,13 +764,13 @@ def fig_toc(tag, res, out, dpi):
                 vals = [one(sel, m, s)["mse_db"] for s in allset
                         if m in sel and s in sel[m]]
             ys.append(float(np.mean(vals)))
-        ax.plot(range(len(keys)), ys, "-" + (mk or "o"), color=c, ms=2.6,
-                lw=1.0, label=lab, zorder=z)
+        ax.plot(range(len(keys)), ys, "--" if mk is None else "-" + mk,
+                color=c, ms=2.6, lw=1.0, label=lab, zorder=z)
     ax.set_xticks(range(len(keys)))
     ax.set_xticklabels(xlab)
     ax.tick_params(labelsize=6.0)
     ax.set_xlabel("shot budget $S$", fontsize=7.0)
-    ax.set_ylabel("mean MSE [dB]", fontsize=7.0)
+    ax.set_ylabel("mean SWPE [dB]", fontsize=7.0)
     ax.legend(frameon=False, fontsize=5.6, loc="lower right", handlelength=1.6,
               labelspacing=0.25, borderpad=0.1)
     ax.grid(axis="y", lw=0.3, color="#dddddd")

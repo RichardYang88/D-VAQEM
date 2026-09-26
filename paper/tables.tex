@@ -16,7 +16,7 @@ noise channels & depolarizing / dephasing / amplitude damping after every gate; 
 calibration grid & $n_{\rm cal}=21$ uniform phases in $[-\pi,\pi)$; 5 held-out phases for variant selection \\
 test grid & $n_{\rm tst}=21$ half-offset phases, disjoint from the calibration grid \\
 shot budgets & $S\in\{256,1024,4096\}$ (sweep) and $S\in\{64,\dots,8192\}$ (finite-shot study); 41 Monte-Carlo trials per point \\
-map fits & 2000 Adam iterations; learning rates $\ell_2$: 0.05, CE: 0.1, CE+Fisher: 0.02, shot-aware: 0.02; Fisher weight $\lambda=1$ \\
+map fits & 2000 Adam iterations; learning rates $\ell_2$: 0.05, CE: 0.1, CE+score matching: 0.02, shot-aware: 0.02; score-matching weight $\lambda=1$, fixed a priori and never tuned \\
 map sizes & linear $(N{+}1)^2=81$ parameters; MLP $(N{+}1)\to32\to32\to(N{+}1)$, 1673 parameters \\
 ZNE folds & Richardson / linear: $(1,3,5)$; quadratic: $(1,3,5,7,9)$ (odd factors only) \\
 oracle grid & 361 exact density-matrix simulations on a uniform phase grid, parabolic refinement of the argmin \\
@@ -58,14 +58,14 @@ noiseless floor & -65.3 & -31.3 & -65.3 & -31.3 & -65.3 & -31.3 & -65.3 & -31.3 
 
 \begin{table*}[!t]
 \centering
-\caption{Scaling with qubit number at depolarizing rate $p=0.01$.  The last column is the MSE reduction of the selected D-VAQEM variant relative to the unmitigated estimator at $S=1024$ and at infinite shots.  ``sector dim'' is the number of calibration numbers per phase; $4^N$ is the dimension of a process tomography of the same probe.}
+\caption{Scaling with qubit number at depolarizing rate $p=0.01$.  The last column is the SWPE reduction of the selected D-VAQEM variant relative to the unmitigated estimator at $S=1024$ and at infinite shots.  ``sector dim'' is the number of calibration numbers per phase; $4^N$ is the dimension of a process tomography of the same probe.}
 \label{tab:scaling}
 \scriptsize
 \setlength{\tabcolsep}{4pt}
 \fitwidth{%
 \begin{tabular}{@{}cccccccccc@{}}
 \toprule
-\multirow{2}{*}{$N$} & \multirow{2}{*}{sector dim} & \multirow{2}{*}{$4^N$} & \multirow{2}{*}{selected} & \multicolumn{5}{c}{MSE [dB] at $S=1024$} & gain [dB] \\
+\multirow{2}{*}{$N$} & \multirow{2}{*}{sector dim} & \multirow{2}{*}{$4^N$} & \multirow{2}{*}{selected} & \multicolumn{5}{c}{SWPE [dB] at $S=1024$} & gain [dB] \\
  & & & variant & none & ZNE & D-VAQEM & retrain & oracle & $1024$ / $\infty$ \\
 \midrule
 4 & 5 & 2.56e+02 & mlp\_fisher & -5.8 & -16.6 & -24.9 & -24.8 & -26.0 & 19.1 / 30.1 \\

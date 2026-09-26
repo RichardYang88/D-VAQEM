@@ -12,9 +12,9 @@ class and style files live in `../LaTeX-template/`.
 
 | file | what it is |
 |---|---|
-| `manuscript.tex` | the submission file: Wiley front matter (title, authors, affiliations, corresponding-author and funding blocks, abstract, keywords), 6 sections, 4 appendices (proofs, simulator validation, ablation, ZNE in the blind limit), 6 figures, Tables I–IV |
+| `manuscript.tex` | the submission file: Wiley front matter (title, authors, affiliations, corresponding-author and funding blocks, abstract, keywords), the five top-level sections the journal asks for (Introduction, Methods, Results, Discussion, Conclusion), 2 appendices (proofs and derivations, simulator validation), 6 figures, Tables I–IV |
 | `tables.tex` | **generated** main-text Tables I–IV (`code/make_tables.py`), three-line booktabs rules |
-| `tables_supplement.tex` | **generated** Supplemental Tables S1–S13 (per-setting matrices, sufficiency/scaling diagnostics, seed and ablation repeats, paired bootstrap intervals, per-setting ZNE comparison, claim-by-claim verdict table) |
+| `tables_supplement.tex` | **generated** Supplemental Tables S1–S13 (per-setting matrices, the sector-reduction SWPE comparison, scaling diagnostics, seed and ablation repeats, paired bootstrap intervals, per-setting ZNE comparison, claim-by-claim verdict table) |
 | `toc_entry.tex` | the journal's Table-of-Contents entry: a 58-word text plus the 55 mm × 50 mm graphic (`../figures/fig_toc.pdf`); compile separately and upload the one-page PDF |
 | `references.bib` | bibliography (companion-paper entries + QEM / metrology / statistics entries); the manuscript gives no `\bibliographystyle` because the class supplies the Chicago numbered style |
 | `check_tex.py` | integrity checker: environment balance, `\ref`/`\label`, `\cite` vs bib keys, truncation heuristic, **plus** a cross-check that every statistical figure and every wall-clock cost quoted in the prose is re-derived from `../results/*.json` (exits non-zero on a mismatch) |
@@ -151,9 +151,67 @@ Every number in `manuscript.tex` is taken from
 directly from `../results/*.json` / `*.npz`, so text, tables and figures cannot
 drift apart.  See `../README.md` for how the results themselves were produced.
 
+## Revision after the advisor's comments
+
+The manuscript was revised point by point against `AQT_submission/problems.txt`:
+
+1. **Metric discipline.** The paper no longer argues through Fisher information,
+   the Cramér–Rao bound or any standard-quantum-limit comparison. Everything is
+   reported on one scale, the squared wrapped phase error (SWPE) in dB, as in the
+   companion VQ-CNNI paper. Figure 1c now plots the per-phase SWPE of the
+   noiseless, noisy and mitigated families, and Figure 2 was re-run from scratch
+   (`code/run_sufficiency_swpe.py`): a readout trained on all $2^N$ outcome
+   probabilities is compared with the sector readout under a matched protocol and
+   with the certified decoder, for $N=4,6,8,10$ over eight noise conditions at
+   four shot budgets. The honest outcome is quoted in full, including the one
+   small-system setting where the full-outcome readout wins by $6.8$ dB.
+2. **Notation of Section 2.1** follows the companion paper: the probe is written
+   out as $U_R(\phi;\bm\theta,\bm\psi)=R_x(\tfrac\pi2)U_{\rm De}(\bm\psi)
+   R_z(\phi)U_{\rm En}(\bm\theta)R_y(\tfrac\pi2)$, the sector distribution as
+   $p(m|\phi)$, and the decoder by its concrete input/output and `atan2` readout
+   instead of an abstract $\Delta^N\to S^1$ map. The mitigation map's parameters
+   were renamed $\bm\omega$ so that $\bm\psi$ belongs to the probe alone.
+3. **No script names in the body**: `code/bootstrap_ci.py`,
+   `code/test_bootstrap_ci.py`, `code/validate_simulator.py` and
+   `code/make_tables.py` are gone from the prose; the repository layout is still
+   described in the Data Availability Statement.
+4. **Theorem and proof moved to the appendix.** The main text keeps only the
+   structural remark (permutation symmetry of the probe ⇒ a phase-independent
+   conditional within each sector); Appendix A.1 states it, and the delta-method
+   variance is now Proposition A.2 with its proof.
+5. **The two networks are told apart explicitly**: the certified decoder
+   ($(N{+}1)\to128\to64\to2$, $9666$ parameters, frozen) versus the mitigation
+   MLP (hidden widths $(32,32)$, $1673$ parameters, refitted per noise condition).
+6. **Provenance for the objectives.** The score-matching term cites
+   Hyvärinen (2005), the bias-plus-variance form cites the bias–variance and
+   heteroscedastic-regression literature, and $\lambda=1$ is justified by its own
+   ablation — which is negative and is reported as such.
+7. **Figure 3 legends** are assembled from the curves actually drawn in any
+   panel, the noiseless floor is labeled and drawn dashed so it cannot be confused
+   with the unmitigated curve, and the caption says why the exact sector inverse
+   is absent from panel (e). **Figure 4** is a single row of three panels — the
+   bias/variance decomposition panel is gone — so nothing is crowded underneath
+   another panel's legend.
+8. **Structure** is Introduction, Methods, Results, Discussion, Conclusion; the
+   old "Setting" and "Distribution-level VQEM" sections are now subsections of
+   Methods.
+9. **Numbering**: `\paragraph` headings became `\subsubsection`, which removes the
+   `3.2.0.1`-style numbers the `USG` class produced (`\theparagraph` there is
+   `\thesubsubsection.\arabic{paragraph}` with an unused subsubsection level).
+10. **No `+` on positive numbers** anywhere in the manuscript or the generated
+    tables; `check_tex.py` was updated to expect the unsigned forms.
+
+`check_tex.py` audits the new claims too, so every number quoted above is
+re-derived from `results/` on each run.
+
+**`D-VAQEM_zh.md` is the Chinese summary of the *pre-revision* draft** and has not
+been rewritten; where it disagrees with `manuscript.tex`, the manuscript is
+authoritative.
+
+
 ## Verification status
 
-All gates are green on this machine: `check_tex.py` (66 quoted numbers agree, 0
+All gates are green on this machine: `check_tex.py` (85 quoted numbers agree, 0
 mismatches, no undefined references), `code/test_bootstrap_ci.py` (78 checks),
 `code/test_pec.py` (57 checks), `code/validate_simulator.py` (53 checks,
 including the independent PennyLane density-matrix comparison) and

@@ -68,7 +68,11 @@ Two caveats that matter for the archived numbers:
   E2/E3/E5, where provenance is uniform.  See
   `wp2_readout_baseline_addendum` in `results/run_manifest.json`.
 
-Experiment map: `sufficiency` = E1 (Theorem 1 numerics), `sweep` = E2
+Experiment map: `sufficiency` = E1 (the archived Fisher-information numerics of
+the sector reduction, kept for provenance), `run_sufficiency_swpe.py` = E1 as the
+paper now reports it (the reduction priced in SWPE: a full-outcome readout
+against the sector readout under a matched training protocol, plus the certified
+decoder), `sweep` = E2
 (headline 16 settings × 4 shot budgets), `shots` = E3 (delta-method validation
 and the shot-aware objective), `scaling` = E4 (N = 4…10), `calib` = E5
 (calibration budget), `pec` = E6 (probabilistic error cancellation: the

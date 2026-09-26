@@ -78,6 +78,39 @@ if unused:
 
 
 # ----------------------------------------------------------------------
+# 2b. citations against the bibliography
+# ----------------------------------------------------------------------
+# A missing bib entry typesets as "[?]" and is only caught at the bibtex run,
+# which happens on a machine that has a TeX distribution; catching it here keeps
+# the local gate meaningful.
+cites = set()
+for group in re.findall(r"\\cite\{([^}]*)\}", tex):
+    cites.update(k.strip() for k in group.split(",") if k.strip())
+bib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "references.bib")
+bibkeys = set()
+CITE_BAD = 0
+try:
+    bibkeys = set(re.findall(r"@\w+\s*\{\s*([^,\s]+)\s*,",
+                             open(bib_path).read()))
+except OSError:
+    print("\ncitation check SKIPPED (references.bib not found)")
+if bibkeys:
+    undef_cites = sorted(cites - bibkeys)
+    unused_bib = sorted(bibkeys - cites)
+    print(f"\ncitations: {len(cites)} keys cited, {len(bibkeys)} in the bib")
+    if undef_cites:
+        print("UNDEFINED \\cite (would typeset as [?]):", undef_cites)
+    else:
+        print("no undefined \\cite")
+    if unused_bib:
+        print("bib entries never cited (harmless, but worth a look):")
+        for u in unused_bib:
+            print("   -", u)
+    CITE_BAD = len(undef_cites)
+
+
+# ----------------------------------------------------------------------
 # 3. numbers quoted in the prose vs the data they come from
 # ----------------------------------------------------------------------
 def latex_p(p):
@@ -125,23 +158,23 @@ def check_numbers(text, pn):
          "CI of the mean reduction")
     want(latex_p(pn["ci_gain_vs_none_inf_sign_p"]), "exact sign-test p")
     want(f"${g('e2_gain_vs_zne_mean_db', 1)}$ dB on average", "mean gain vs ZNE")
-    want(f"${g('ci_vs_zne_inf_lf_point', 1):+}$ dB "
-         f"$[{g('ci_vs_zne_inf_lf_ci_lo', 1):+},"
-         f"{g('ci_vs_zne_inf_lf_ci_hi', 1):+}]$",
+    want(f"${g('ci_vs_zne_inf_lf_point', 1)}$ dB "
+         f"$[{g('ci_vs_zne_inf_lf_ci_lo', 1)},"
+         f"{g('ci_vs_zne_inf_lf_ci_hi', 1)}]$",
          "least-favorable per-setting gain vs ZNE")
     want(latex_p(pn["ci_vs_zne_inf_lf_p_one_sided"]),
          "one-sided bootstrap p, least-favorable setting")
     for zm, quoted in (("zne_rich", "Richardson"), ("zne_poly1", "linear fit"),
                        ("zne_poly2", "quadratic fit")):
-        want(f"${g(f'ci_vs_{zm}_inf_mean', 1):+}$ dB "
-             f"$[{g(f'ci_vs_{zm}_inf_ci_lo', 1):+},"
-             f"{g(f'ci_vs_{zm}_inf_ci_hi', 1):+}]$",
+        want(f"${g(f'ci_vs_{zm}_inf_mean', 1)}$ dB "
+             f"$[{g(f'ci_vs_{zm}_inf_ci_lo', 1)},"
+             f"{g(f'ci_vs_{zm}_inf_ci_hi', 1)}]$",
              f"fixed comparator {quoted}")
         want(latex_p(pn[f"ci_vs_{zm}_inf_sign_p"]), f"sign p vs {quoted}")
     for key in ("S256", "S1024", "S4096"):
-        want(f"${g(f'ci_vs_retrain_{key}_db', 2):+}$ dB "
-             f"$[{g(f'ci_vs_retrain_{key}_lo', 2):+},"
-             f"{g(f'ci_vs_retrain_{key}_hi', 2):+}]$",
+        want(f"${g(f'ci_vs_retrain_{key}_db', 2)}$ dB "
+             f"$[{g(f'ci_vs_retrain_{key}_lo', 2)},"
+             f"{g(f'ci_vs_retrain_{key}_hi', 2)}]$",
              f"parity with decoder retraining at {key}")
     wps = [pn[f"ci_vs_retrain_{k}_wilcoxon_p"] for k in ("S256", "S1024", "S4096")]
     want("($p=" + ", ".join(f"{p:.3f}$" if i == 0 else f"${p:.3f}$"
@@ -166,10 +199,10 @@ def check_numbers(text, pn):
     # earlier "reaches the noiseless floor, identical to the exact sector
     # inverse" was true only at the weakest readout rate and went unchecked).
     if "ci_vs_readout_inf_db" in pn:
-        want(f"${g('ci_vs_readout_inf_db', 1):+}$ dB",
+        want(f"${g('ci_vs_readout_inf_db', 1)}$ dB",
              "mean gain vs calibrated readout mitigation (infinite shots)")
-        want(f"[{g('ci_vs_readout_inf_lo', 1):+},"
-             f"{g('ci_vs_readout_inf_hi', 1):+}]",
+        want(f"[{g('ci_vs_readout_inf_lo', 1)},"
+             f"{g('ci_vs_readout_inf_hi', 1)}]",
              "CI vs calibrated readout mitigation (must contain zero)")
         want(f"$p={pn['ci_vs_readout_inf_sign_p']:.2f}$", "sign p vs readout (inf)")
         want(f"$p={pn['ci_vs_readout_inf_wilcoxon_p']:.2f}$",
@@ -179,9 +212,9 @@ def check_numbers(text, pn):
              "win count vs readout mitigation (inf)")
         wins = []
         for key in ("S256", "S1024", "S4096"):
-            want(f"${g(f'ci_vs_readout_{key}_db', 1):+}$ dB "
-                 f"$[{g(f'ci_vs_readout_{key}_lo', 1):+},"
-                 f"{g(f'ci_vs_readout_{key}_hi', 1):+}]$",
+            want(f"${g(f'ci_vs_readout_{key}_db', 1)}$ dB "
+                 f"$[{g(f'ci_vs_readout_{key}_lo', 1)},"
+                 f"{g(f'ci_vs_readout_{key}_hi', 1)}]$",
                  f"gain vs readout mitigation at {key}")
             wins.append(f"${int(pn[f'ci_vs_readout_{key}_wins'])}/"
                         f"{int(pn[f'ci_vs_readout_{key}_n'])}$")
@@ -197,12 +230,12 @@ def check_numbers(text, pn):
         want(f"${int(pn['readout_genie_defined_settings'])}$ of the "
              f"${int(pn['readout_n_settings'])}$ settings",
              "settings where the genie inverse is undefined")
-        want(f"${g('ci_vs_linvknown_inf_db', 1):+}$ dB "
-             f"$[{g('ci_vs_linvknown_inf_lo', 1):+},"
-             f"{g('ci_vs_linvknown_inf_hi', 1):+}]$",
+        want(f"${g('ci_vs_linvknown_inf_db', 1)}$ dB "
+             f"$[{g('ci_vs_linvknown_inf_lo', 1)},"
+             f"{g('ci_vs_linvknown_inf_hi', 1)}]$",
              "gain vs the genie sector inverse (infinite shots)")
         gd = [g(f"ci_vs_linvknown_{k}_db", 1) for k in ("S256", "S1024", "S4096")]
-        want(f"${min(gd):+}$ to ${max(gd):+}$ dB",
+        want(f"${min(gd)}$ to ${max(gd)}$ dB",
              "finite-shot gain range vs the genie inverse")
         gw = [pn[f"ci_vs_linvknown_{k}_wilcoxon_p"]
               for k in ("S256", "S1024", "S4096")]
@@ -222,6 +255,88 @@ def check_numbers(text, pn):
         want(f"${g('readout_inf_l2_db_weakest', 1)}$ dB against a floor of "
              f"${g('readout_inf_floor_db', 1)}$ dB",
              "learned map vs floor at the weakest readout rate")
+    # ---- what the sector reduction costs, in SWPE (E1) ---------------------
+    if "e1_inf_matched_all_median_db" in pn:
+        def n1(key):
+            return int(pn[key])
+
+        def sci(v, nd=1):
+            a, e = f"{float(v):.{nd}e}".split("e")
+            return f"{a}\\times10^{{{int(e)}}}"
+
+        def thin(v):
+            """41282 -> 41\\,282, the way the prose writes a five-digit count."""
+            v = int(v)
+            return f"{v // 1000}\\,{v % 1000:03d}" if v >= 1000 else f"{v}"
+
+        print("\nsector reduction priced in SWPE (E1) claims:")
+        want(f"ahead in only ${n1('e1_inf_certified_noisy_full_better_n')}$ of "
+             f"the ${n1('e1_inf_certified_noisy_n')}$ noisy conditions",
+             "conditions where the full-outcome readout beats the certified one")
+        want(f"better by ${abs(pn['e1_inf_certified_noisy_mean_db']):.2f}$~dB on "
+             f"average there, by up to "
+             f"${pn['e1_inf_certified_noisy_max_db']:.1f}$~dB",
+             "certified sector decoder against the full-outcome readout")
+        want(f"ahead in ${n1('e1_S1024_certified_all_n') - n1('e1_S1024_certified_all_full_better_n')}$ "
+             f"of the ${n1('e1_S1024_certified_all_n')}$ system-size $\\times$ "
+             f"noise pairs",
+             "certified decoder ahead at S=1024")
+        want(f"median gap is ${abs(pn['e1_inf_matched_all_median_db']):.2f}$~dB "
+             f"and the mean is ${abs(pn['e1_inf_matched_all_mean_db']):.2f}$~dB",
+             "matched-protocol gap over all pairs")
+        want(f"ahead by up to ${pn['e1_inf_matched_all_max_db']:.1f}$~dB",
+             "best case for the reduced representation, matched protocol")
+        want(f"exception is ${abs(pn['e1_inf_matched_all_min_db']):.1f}$~dB",
+             "worst case for the reduced representation, matched protocol")
+        want(f"${n1('e1_params_sector_N8')}$ parameters instead of "
+             f"${thin(pn['e1_params_full_N8'])}$",
+             "readout parameter counts, sector versus full outcome")
+        floor = -5 * int(-pn["e1_noiseless_worst_db"] // 5)
+        want(f"below ${floor:.0f}$~dB at all four system sizes",
+             "the noiseless rows sit at the fitting floor of every arm")
+        # the Discussion quotes the same comparison from the other side
+        want(f"beats in ${n1('e1_inf_certified_noisy_n') - n1('e1_inf_certified_noisy_full_better_n')}$ "
+             f"of the ${n1('e1_inf_certified_noisy_n')}$ noisy conditions",
+             "conditions where the certified decoder beats the full readout")
+
+        print("\nscore-matching objective and the shot-aware mechanism:")
+        want(f"identical to it in ${n1('obj_score_vs_ce_identical_n')}$ of the "
+             f"${n1('obj_n_settings')}$ settings and behind by up to "
+             f"${abs(pn['obj_score_vs_ce_worst_db']):.1f}$~dB in the rest, "
+             f"${abs(pn['obj_score_vs_ce_mean_db']):.1f}$~dB behind on average",
+             "score-matching arm against plain cross-entropy, same map family")
+        want(f"deploys it in ${n1('obj_selected_mlp_fisher')}$ of the "
+             f"${n1('obj_n_settings')}$",
+             "settings in which the held-out score deploys the regularized fit")
+        want(f"selects in ${n1('obj_shotaware_selected_n')}$ of the "
+             f"${n1('obj_n_settings')}$ settings (${n1('obj_selected_lin_mse')}$ "
+             f"with the linear map, ${n1('obj_selected_mlp_mse')}$ with the "
+             f"mitigation MLP)",
+             "settings in which the shot-aware objective is deployed")
+        want(f"changes the variance term by at most "
+             f"${pn['e3_var_maxdev_pct']:.0f}\\,\\%$ at any budget, while its "
+             f"squared bias falls from "
+             f"${sci(pn['e3_bias2_low_shot'])}$ at "
+             f"$S={n1('e3_shot_lo')}$ to ${sci(pn['e3_bias2_high_shot'])}$ at "
+             f"$S={n1('e3_shot_hi')}$, a factor of "
+             f"${pn['e3_bias_ratio']:.0f}$",
+             "mechanism of the shot-aware refit at depolarizing p=0.01")
+
+        print("\nconcept figure panel (c) and the flat-response settings:")
+        want(f"(mean ${pn['fig1c_noiseless_db']:.1f}$~dB)",
+             "noiseless curve of panel (c)")
+        want(f"(mean ${pn['fig1c_unmit_db']:.1f}$~dB, and up to "
+             f"${pn['fig1c_unmit_worst_db']:.1f}$~dB",
+             "noisy-device curve of panel (c)")
+        want(f"(mean ${pn['fig1c_mit_db']:.1f}$~dB)",
+             "mitigated curve of panel (c)")
+        want(f"the ${pn['uniform_guess_db']:.1f}$~dB of a uniform guess",
+             "reference level of a uniform guess over the phase range")
+        want(f"already sits at ${pn['unmit_db_deph_0p05']:.1f}$~dB",
+             "unmitigated estimator at dephasing p=0.05")
+        want(f"the $5.2$~dB of a uniform guess",
+             "uniform-guess reference quoted at dephasing p=0.05")
+
     # ---- probabilistic error cancellation (E6) -----------------------------
     if pn.get("pec_available"):
         CHAN = {"depol": "depolarizing", "deph": "dephasing",
@@ -229,7 +344,7 @@ def check_numbers(text, pn):
 
         def gs(key, nd=1):
             """Signed decimal, the way the prose writes a dB gain: +31.1/-4.6."""
-            return f"{float(pn[key]):+.{nd}f}"
+            return f"{float(pn[key]):.{nd}f}"
 
         def n(key):
             """An integer count stored as a float scalar."""
@@ -242,8 +357,8 @@ def check_numbers(text, pn):
 
         def pci(name, nd=1):
             """A PEC confidence interval written the way the prose writes it."""
-            return (f"$[{float(pn['pec_ci_lo_' + name]):+.{nd}f},"
-                    f"{float(pn['pec_ci_hi_' + name]):+.{nd}f}]$")
+            return (f"$[{float(pn['pec_ci_lo_' + name]):.{nd}f},"
+                    f"{float(pn['pec_ci_hi_' + name]):.{nd}f}]$")
 
         print("\nPEC / probabilistic error cancellation (E6) claims:")
         want(f"agree to ${sci('pec_identity_max_dev_db')}$ dB across the "
@@ -445,5 +560,5 @@ _pn_path = os.path.join(RES, "paper_numbers.json")
 PN = json.load(open(_pn_path)) if os.path.exists(_pn_path) else None
 _, NBAD = check_numbers(tex, PN)
 CBAD = check_costs(tex, RES)
-sys.exit(1 if (undef or NBAD or CBAD) else 0)
+sys.exit(1 if (undef or NBAD or CBAD or CITE_BAD) else 0)
 

@@ -40,7 +40,7 @@ LABEL = {
     "dvaqem_lin_mse": "D-VAQEM linear, shot-aware",
     "dvaqem_mlp_l2": "D-VAQEM MLP, $\\ell_2$",
     "dvaqem_mlp_ce": "D-VAQEM MLP, CE",
-    "dvaqem_mlp_fisher": "D-VAQEM MLP, CE+Fisher",
+    "dvaqem_mlp_fisher": "D-VAQEM MLP, CE+score matching",
     "dvaqem_mlp_mse": "D-VAQEM MLP, shot-aware",
     "dvaqem": "D-VAQEM (selected)",
     "best_zne": "best ZNE variant a)",
@@ -176,8 +176,8 @@ def table_protocol(man, meta0):
          "$S\\in\\{64,\\dots,8192\\}$ (finite-shot study); "
          f"{man['n_trials']} Monte-Carlo trials per point"),
         ("map fits", f"{d['iters']} Adam iterations; learning rates "
-         "$\\ell_2$: 0.05, CE: 0.1, CE+Fisher: 0.02, shot-aware: 0.02; "
-         "Fisher weight $\\lambda=1$"),
+         "$\\ell_2$: 0.05, CE: 0.1, CE+score matching: 0.02, shot-aware: 0.02; "
+         "score-matching weight $\\lambda=1$, fixed a priori and never tuned"),
         ("map sizes", "linear $(N{+}1)^2=81$ parameters; MLP "
          "$(N{+}1)\\to32\\to32\\to(N{+}1)$, 1673 parameters"),
         ("ZNE folds", "Richardson / linear: $(1,3,5)$; quadratic: "
@@ -197,7 +197,7 @@ def table_protocol(man, meta0):
 
 
 def table_channels(rows):
-    """Table II: mean MSE [dB] per noise channel, infinite and finite shots."""
+    """Table II: mean SWPE [dB] per noise channel, infinite and finite shots."""
     idx = {k: index([r for r in rows if r["shots"] == k], "method", "setting")
            for k in ("inf", "S1024")}
     settings = settings_by_channel(sorted({r["setting"] for r in rows}))
@@ -242,7 +242,7 @@ def table_scaling(rows, cost):
     body = ["\\begin{tabular}{@{}cccccccccc@{}}", "\\hline",
             "\\multirow{2}{*}{$N$} & \\multirow{2}{*}{sector dim} & "
             "\\multirow{2}{*}{$4^N$} & \\multirow{2}{*}{selected} & "
-            "\\multicolumn{5}{c}{MSE [dB] at $S=1024$} & gain [dB] \\\\",
+            "\\multicolumn{5}{c}{SWPE [dB] at $S=1024$} & gain [dB] \\\\",
             " & & & variant & none & ZNE & D-VAQEM & retrain & oracle & "
             "$1024$ / $\\infty$ \\\\", "\\hline"]
     for N in Ns:
@@ -263,7 +263,7 @@ def table_scaling(rows, cost):
     body.append("\\hline")
     t = env_table(
         "Scaling with qubit number at depolarizing rate $p=0.01$.  The last "
-        "column is the MSE reduction of the selected D-VAQEM variant relative "
+        "column is the SWPE reduction of the selected D-VAQEM variant relative "
         "to the unmitigated estimator at $S=1024$ and at infinite shots.  "
         "``sector dim'' is the number of calibration numbers per phase; "
         "$4^N$ is the dimension of a process tomography of the same probe.",
@@ -310,28 +310,67 @@ def table_sweep_supplement(rows, key, lab):
                            for b, s in zip(best, settings)) + " \\\\")
     body.append("\\hline")
     return env_table(
-        f"MSE [dB] of every method in all 16 noise settings at {lab}, $N=8$.  "
+        f"SWPE [dB] of every method in all 16 noise settings at {lab}, $N=8$.  "
         "The last row is the variant selected by the held-out calibration "
         "score, which is the number reported in the main text.",
         f"tab:sweep_{key}", None, body, star=True, font="\\scriptsize", colsep="2pt")
 
 
-def table_e1(rows):
-    body = ["\\begin{tabular}{@{}ccclrrr@{}}", "\\hline",
-            "$N$ & variant & noise & mean $F(\\mathbf{p}_{\\rm full})$ & "
-            "mean $F(\\mathbf{p}_m)$ & $\\Delta_{\\rm CRB}$ [dB] & "
-            "max rel. dev. \\\\", "\\hline"]
+def table_e1(data):
+    """Table S1: the sector reduction priced in SWPE, three readout arms.
+
+    Reads ``e1_sufficiency_swpe.json``.  For every system size a readout trained
+    on the full outcome distribution is compared with one trained on the sector
+    probabilities under an identical protocol, and with the certified decoder the
+    method deploys.  Gaps are ``SWPE(full) - SWPE(arm)`` in dB, so a positive gap
+    favours the reduced representation.
+    """
+    rows = data["rows"]
+    pair = {}
     for r in rows:
-        body.append(f"{r['N']} & {tex(r['variant'])} & {tex(r['noise'])} & "
-                    f"{r['mean_FI_p_full']:.6f} & {r['mean_FI_p_m']:.6f} & "
-                    f"{r['crb_gap_db']:.2e} & {r['max_rel_dev']:.2e} \\\\")
+        pair.setdefault((r["N"], r["setting"], str(r["shots"])), {})[
+            r["decoder"]] = r
+    inf = sorted(k for k in pair if k[2] == "inf")
+    body = ["\\begin{tabular}{@{}clrrrrr@{}}", "\\hline",
+            "$N$ & setting & certified & sector, retrained & full outcome & "
+            "gap, matched & gap, certified \\\\", "\\hline"]
+    for k in inf:
+        p = pair[k]
+        gm = p["full"]["mse_db"] - p["sector"]["mse_db"]
+        gc = p["full"]["mse_db"] - p["sector_frozen"]["mse_db"]
+        body.append(f"{k[0]} & {tex(k[1])} & "
+                    f"{p['sector_frozen']['mse_db']:.2f} & "
+                    f"{p['sector']['mse_db']:.2f} & {p['full']['mse_db']:.2f} & "
+                    f"{gm:.2f} & {gc:.2f} \\\\")
+    body.append("\\hline")
+    body.append("\\multicolumn{7}{@{}l@{}}{\\textit{Finite shots: the same gaps "
+                "over all pairs}} \\\\")
+    body.append("$S$ & matched mean & matched median & matched worst & "
+                "certified mean & certified median & full ahead \\\\")
+    body.append("\\hline")
+    for shots in ("256", "1024", "4096"):
+        ks = [k for k in pair if k[2] == shots]
+        if not ks:
+            continue
+        gm = np.array([pair[k]["full"]["mse_db"] - pair[k]["sector"]["mse_db"]
+                       for k in ks])
+        gc = np.array([pair[k]["full"]["mse_db"]
+                       - pair[k]["sector_frozen"]["mse_db"] for k in ks])
+        body.append(f"{shots} & {gm.mean():.2f} & {np.median(gm):.2f} & "
+                    f"{gm.min():.2f} & {gc.mean():.2f} & "
+                    f"{np.median(gc):.2f} & "
+                    f"{int((gc < 0).sum())}/{len(ks)} \\\\")
     body.append("\\hline")
     return env_table(
-        "Sufficiency of the collective-imbalance reduction: classical Fisher "
-        "information of the full outcome distribution and of the sector "
-        "distribution, Cram\\'er--Rao penalty of the reduction, and worst "
-        "pointwise relative deviation, for trained and random circuit "
-        "parameters.", "tab:e1", None, body, star=True, font="\\tiny")
+        "What the sector reduction costs, in SWPE [dB]: the certified decoder of "
+        "the checkpoint, a sector readout retrained under a protocol matched to "
+        "the full-outcome readout, and that full-outcome readout itself, at "
+        "infinite shots for every system size and noise condition.  Gaps are "
+        "SWPE(full)~$-$~SWPE(arm), so a positive gap favors the reduced "
+        "representation; the lower block summarizes the same gaps at finite shot "
+        "budgets, where ``full ahead'' counts the pairs in which the "
+        "full-outcome readout beats the certified decoder.",
+        "tab:e1", None, body, star=True, font="\\tiny")
 
 
 def table_e3(rows):
@@ -367,7 +406,7 @@ def table_e3(rows):
                                    for S in shots) + " \\\\")
     body.append("\\hline")
     t += "\n" + env_table(
-        "Ratio of the Monte-Carlo MSE to the analytic (delta-method) "
+        "Ratio of the Monte-Carlo SWPE to the analytic (delta-method) "
         "prediction bias$^2$ + Var$_S$.  A value of 1 validates the "
         "closed-form variance that the shot-aware objective minimizes.",
         "tab:e3ratio", None, body, star=True, font="\\tiny")
@@ -392,7 +431,7 @@ def table_e5(rows):
         body.append("\\hline")
         head = ("calibration phases $n_{\\rm cal}$" if axis == "n_cal"
                 else "calibration shots $S_{\\rm cal}$")
-        out += env_table(f"MSE [dB] at $S=1024$ versus {head} (depolarizing "
+        out += env_table(f"SWPE [dB] at $S=1024$ versus {head} (depolarizing "
                          f"$p=0.01$, $N=8$).", f"tab:e5_{axis}", None,
                          body) + "\n"
     return out
@@ -420,7 +459,7 @@ def table_robustness(seeds, abl, base_rows):
                         f"{tex(', '.join(sorted(sel)))} \\\\")
         body.append("\\hline")
         out += env_table("Repeat runs of the headline sweep with independent "
-                         "random seeds: mean MSE reduction over the 16 "
+                         "random seeds: mean SWPE reduction over the 16 "
                          "settings and the set of selected variants.",
                          "tab:seeds", None, body)
     if abl:
@@ -429,7 +468,7 @@ def table_robustness(seeds, abl, base_rows):
         ia = index([r for r in abl if r["shots"] == "inf"], "method", "setting")
         body = ["\\begin{tabular}{@{}lccccc@{}}", "\\hline",
                 "setting & warm variant & cold variant & warm [dB] & cold [dB]"
-                " & cold$-$warm \\\\", "\\hline"]
+                " & cold$-$warm [dB] \\\\", "\\hline"]
         for s in sorted({r["setting"] for r in base_rows}):
             bw = one(ib, "none", s)["best_dvaqem"]
             bc = one(ia, "none", s)["best_dvaqem"]
@@ -437,7 +476,7 @@ def table_robustness(seeds, abl, base_rows):
             c = one(ia, bc, s)["mse_db"]
             body.append(f"{tex(s)} & {tex(bw.replace('dvaqem_', ''))} & "
                         f"{tex(bc.replace('dvaqem_', ''))} & {w:.1f} & {c:.1f} & "
-                        f"{c - w:+.1f} \\\\")
+                        f"{c - w:.1f} \\\\")
         body.append("\\hline")
         out += "\n" + env_table(
             "Ablation of the staged warm start: the shot-aware maps are fitted "
@@ -472,7 +511,7 @@ def _ci(d, pct, unit="dB"):
         return "--"
     if unit == "%":
         return f"$[{d['ci_lo']:.1f},\\,{d['ci_hi']:.1f}]$"
-    return f"$[{d['ci_lo']:+.2f},\\,{d['ci_hi']:+.2f}]$"
+    return f"$[{d['ci_lo']:.2f},\\,{d['ci_hi']:.2f}]$"
 
 
 def table_ci(ci):
@@ -503,7 +542,7 @@ def table_ci(ci):
             mu = e["mean"]
             body.append(
                 f"{CI_SHOTLAB[key]} & {LABEL.get(name, tex(name))} & "
-                f"${mu['mean']:+.2f}$ & {_ci(mu, pct)} & "
+                f"${mu['mean']:.2f}$ & {_ci(mu, pct)} & "
                 f"{e['sign']['n_positive']}/{e['sign']['n']} & "
                 f"{_p(e['sign']['p_two_sided'])} & "
                 f"{_p(e['wilcoxon']['p_two_sided'])} \\\\")
@@ -544,7 +583,7 @@ def table_ci(ci):
             body.append(
                 f"{tex(s)} & {tex(e['selected'].replace('dvaqem_', ''))} & "
                 f"{tex(e.get('best_zne_variant', '?').replace('zne_', ''))} & "
-                f"${e['mse_db']:.1f}$ & ${bz['point']:+.2f}$ & "
+                f"${e['mse_db']:.1f}$ & ${bz['point']:.2f}$ & "
                 f"{_ci(bz, pct)} & {_p(bz['p_one_sided'])} & "
                 f"{'yes' if bz['ci_lo'] > 0 else 'no'} \\\\")
         body.append("\\hline")
@@ -575,7 +614,7 @@ def table_ci_claims(ci):
     a_inf = agg.get("inf", {})
     mr = cl.get("mean_reduction_inf_db")
     if mr:
-        rows.append(("mean MSE reduction at infinite shots",
+        rows.append(("mean SWPE reduction at infinite shots",
                      f"${mr['mean']:.2f}$\\,dB", _ci(mr, pct),
                      f"sign/Wilcoxon $p$\\,=\\,"
                      f"{_p(a_inf['none']['sign']['p_two_sided'])}"
@@ -587,7 +626,7 @@ def table_ci_claims(ci):
               and mm["ci_lo"] > 0)
         rows.append(("beats ZNE in all sixteen noise settings "
                      "(a-posteriori best variant)",
-                     f"${mm['point']:+.2f}$\\,dB worst setting", _ci(mm, pct),
+                     f"${mm['point']:.2f}$\\,dB worst setting", _ci(mm, pct),
                      f"{cl['beats_best_zne_settings_inf']}/"
                      f"{cl['n_settings_inf']} wins, CI excludes 0 in "
                      f"{cl['beats_best_zne_ci_excludes_zero_inf']}; "
@@ -599,10 +638,10 @@ def table_ci_claims(ci):
             if not v:
                 continue
             rows.append((f"\\quad vs the fixed comparator {LABEL[zm]}",
-                         f"${v['mean']:+.2f}$\\,dB mean",
-                         f"$[{v['ci_lo']:+.2f},\\,{v['ci_hi']:+.2f}]$",
+                         f"${v['mean']:.2f}$\\,dB mean",
+                         f"$[{v['ci_lo']:.2f},\\,{v['ci_hi']:.2f}]$",
                          f"wins {v['wins']:.0f}/{v['n']:.0f}, worst setting "
-                         f"${v['min']:+.2f}$\\,dB, sign "
+                         f"${v['min']:.2f}$\\,dB, sign "
                          f"$p$\\,=\\,{_p(v['p_sign'])}, Wilcoxon "
                          f"$p$\\,=\\,{_p(v['p_wilcoxon'])}",
                          "supported" if v["wins"] == v["n"] and v["ci_lo"] > 0
@@ -617,7 +656,7 @@ def table_ci_claims(ci):
             mu = r["mean"]
             pw = r["wilcoxon"]["p_two_sided"]
             rows.append((f"matches decoder retraining at ${key[1:]}$ shots",
-                         f"${mu['mean']:+.2f}$\\,dB", _ci(mu, pct),
+                         f"${mu['mean']:.2f}$\\,dB", _ci(mu, pct),
                          f"sign $p$\\,=\\,{_p(r['sign']['p_two_sided'])}, Wilcoxon "
                          f"$p$\\,=\\,{_p(pw)}, wins {r['sign']['n_positive']}/"
                          f"{r['sign']['n']}",
@@ -707,7 +746,7 @@ def table_pec(ci, man=None):
                  f"{10.0 * np.log10(ov[s]['gamma_sq']):.0f}",
                  f"${ps['inf'][s]['mse_db']:.1f}$"]
         for comp in ("linv_calib", "none"):
-            cells += [f"${gain(t, comp, s):+.2f}$" for t in PEC_BUDGETS]
+            cells += [f"${gain(t, comp, s):.2f}$" for t in PEC_BUDGETS]
         body.append(" & ".join(cells) + " \\\\")
     body.append("\\hline")
 
@@ -725,7 +764,7 @@ def table_pec(ci, man=None):
                 if grp is setts:
                     a = agg[t][comp]["mean"]["mean"]
                     assert abs(m - a) < 1e-9, (comp, t, m, a)
-                cells.append(f"$\\mathbf{{{m:+.2f}}}$")
+                cells.append(f"$\\mathbf{{{m:.2f}}}$")
         body.append(" & ".join(cells) + " \\\\")
     body.append("\\hline")
     return _pec_caption(ci, setts, well, ill, gain, agg, ov, pct, B, body, man)
@@ -807,7 +846,7 @@ def _pec_caption(ci, setts, well, ill, gain, agg, ov, pct, B, body, man=None):
         f"penalty to show in decibels; deleting the worst setting "
         f"({tex(worst)}, $\\gamma={_sci(ov[worst]['gamma'], wrap=False)}$) "
         f"makes the mean "
-        f"loss at $S{{=}}1024$ worse, ${full:+.2f}\\to{loo:+.2f}$ dB.  Second, "
+        f"loss at $S{{=}}1024$ worse, ${full:.2f}\\to{loo:.2f}$ dB.  Second, "
         "the right-hand block locates the operating boundary: at $S{=}1024$ PEC "
         f"beats doing nothing in {nwin}/{len(setts)} settings overall and the "
         f"{n_neg['S1024']} losses are {bound}, so a quasi-probability "
@@ -829,7 +868,7 @@ def main():
     man = load("run_manifest.json", res)
     rows = load(f"{a.tag}_sweep.json", res)
     meta = load(f"{a.tag}_sweep_meta.json", res)
-    e1 = load("e1_sufficiency.json", res)
+    e1 = load("e1_sufficiency_swpe.json", res)
     e3 = load("e3_shots.json", res)
     e4 = load("e4_scaling.json", res)
     e5 = load("e5_calib.json", res)
