@@ -145,7 +145,7 @@ depends strongly on the shot budget.
 
 We address all three.  Our starting point is structural.  For the collective
 probe considered here the measurement statistics are aggregated onto the
-population imbalance $m=(\#0-\#1)/2\in\{-N/2,\dots,N/2\}$, an $(N+1)$-outcome
+population imbalance $m(x)=(\#0(x)-\#1(x))/2\in\{-N/2,\dots,N/2\}$, an $(N+1)$-outcome
 statistic, and the whole method lives in that reduced space.  Whether working
 there is affordable is a question we answer by measurement rather than by
 assumption
@@ -423,7 +423,7 @@ $(N+1)$-dimensional sector space established in Section~\ref{sec:setup}.
 \caption{\textbf{Distribution-level error mitigation.}
 \textbf{a}~Data flow.  The probe circuit imprints the unknown phase; the
 outcome statistics are aggregated onto the population imbalance
-$2m=\#0-\#1$; the noisy device deforms the sector distribution
+$2m(x)=\#0(x)-\#1(x)$; the noisy device deforms the sector distribution
 $\yvec=\mathcal N_\phi[\pvec_m]$; a parametric map $M_{\bm\omega}$ corrects it
 before the frozen, certified decoder reads out $\phihat$.  The map is fitted
 once on calibration data---noisy distributions at known reference phases
