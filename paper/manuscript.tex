@@ -145,9 +145,10 @@ depends strongly on the shot budget.
 
 We address all three.  Our starting point is structural.  For the collective
 probe considered here the measurement statistics are aggregated onto the
-population imbalance $m=\#0-\#1$, an $(N+1)$-outcome statistic, and the whole
-method lives in that reduced space.  Whether working there is affordable is a
-question we answer by measurement rather than by assumption
+population imbalance $m=(\#0-\#1)/2\in\{-N/2,\dots,N/2\}$, an $(N+1)$-outcome
+statistic, and the whole method lives in that reduced space.  Whether working
+there is affordable is a question we answer by measurement rather than by
+assumption
 (Section~\ref{subsec:sufficiency}): for the same frozen probe we train a second
 readout that consumes all $2^N$ outcome probabilities, under a protocol matched
 to the certified decoder in every other respect---same training phases, same
@@ -213,31 +214,37 @@ construction below applies to any probe whose readout is aggregated onto a
 collective statistic.  An unknown phase $\phi\in[-\pi,\pi)$ is imprinted on an
 $N$-qubit probe by the Ramsey-type circuit of that reference,
 \begin{equation}
-  U_R(\phi;\bm\theta,\bm\psi)
-  = R_x\!\Big(\frac{\pi}{2}\Big)\,U_{\rm De}(\bm\psi)\,R_z(\phi)\,
+  U_R(\phi;\bm\theta,\bm\vartheta)
+  = R_x\!\Big(\frac{\pi}{2}\Big)\,U_{\rm De}(\bm\vartheta)\,R_z(\phi)\,
     U_{\rm En}(\bm\theta)\,R_y\!\Big(\frac{\pi}{2}\Big),
   \label{eq:probe}
 \end{equation}
-where $U_{\rm En}(\bm\theta)$ and $U_{\rm De}(\bm\psi)$ are one encoding and one
-decoding layer of collective rotations and one-axis twisting terms.  Their
-trainable parameter vectors $\bm\theta$ (encoding layer) and $\bm\psi$ (decoding
-layer) are two distinct objects, and both are distinct from the unknown phase
-$\phi$ and from the parameters $\bm\omega$ of the mitigation map introduced in
+where $U_{\rm En}(\bm\theta)$ and $U_{\rm De}(\bm\vartheta)$ are one encoding and
+one decoding layer of collective rotations and one-axis twisting terms, with the
+same symbol conventions as Ref.~\cite{yang2025vqcnni}.  Their trainable parameter
+vectors $\bm\theta$ (encoding layer) and $\bm\vartheta$ (decoding layer) are two
+distinct objects, and both are distinct from the unknown phase $\phi$ and from
+the parameters $\bm\omega$ of the mitigation map introduced in
 Section~\ref{sec:method}; no symbol is reused for two of them anywhere in this
 paper.  Measuring in the computational basis gives the outcome distribution
-$p(x|\phi)=\big|\langle x|U_R(\phi;\bm\theta,\bm\psi)
+$p(x|\phi)=\big|\langle x|U_R(\phi;\bm\theta,\bm\vartheta)
 |\downarrow\rangle^{\otimes N}\big|^2$ over bit strings $x\in\{0,1\}^N$, which we
-aggregate onto the population imbalance
-$m=\#0(x)-\#1(x)\in\{-N,-N+2,\dots,N\}$,
+aggregate onto the population imbalance between the two spin states,
+$m=(\#0(x)-\#1(x))/2\in\{-N/2,-N/2+1,\dots,N/2\}$ as in
+Ref.~\cite{yang2025vqcnni} (half-integer valued when $N$ is odd),
 \begin{equation}
-  p(m|\phi) = \sum_{x:\,\#0(x)-\#1(x)=m} p(x|\phi)
+  p_{\bm\theta,\bm\vartheta}(m|\phi)
+  = \sum_{x:\,(\#0(x)-\#1(x))/2=m} p(x|\phi)
   \equiv \big(A\,p(\cdot|\phi)\big)_m ,
   \label{eq:aggregate}
 \end{equation}
 so that the readout sees the $(N+1)$-component probability vector
-$\pvec(m|\phi)=\big(p(-N|\phi),\dots,p(N|\phi)\big)$ instead of the $2^N$
+$\pvec(m|\phi)=\big(p(-N/2|\phi),\dots,p(N/2|\phi)\big)$ instead of the $2^N$
 outcome probabilities; where a subscript is typographically convenient we write
-$\pvec_m(\phi)\equiv\pvec(m|\phi)$.  The estimator is a frozen multilayer
+$\pvec_m(\phi)\equiv\pvec(m|\phi)$.  The figures and the implementation label the
+same outcomes by the integer imbalance $2m=\#0-\#1\in\{-N,-N+2,\dots,N\}$; a
+sector is the set of outcomes with a given $|m|$, of which there are
+$\lfloor N/2\rfloor+1$.  The estimator is a frozen multilayer
 perceptron $\phihat=D_{\mathbf w}\big(\pvec(m|\phi)\big)$ that maps this vector
 to a phase through a circular output: the architecture is
 $(N{+}1)\to128\to64\to2$ with softsign hidden layers, its two outputs are
@@ -414,8 +421,8 @@ $(N+1)$-dimensional sector space established in Section~\ref{sec:setup}.
 \includegraphics[width=\linewidth]{fig1_concept.pdf}
 \caption{\textbf{Distribution-level error mitigation.}
 \textbf{a}~Data flow.  The probe circuit imprints the unknown phase; the
-outcome statistics are aggregated onto the collective imbalance
-$m=\#0-\#1$; the noisy device deforms the sector distribution
+outcome statistics are aggregated onto the population imbalance
+$2m=\#0-\#1$; the noisy device deforms the sector distribution
 $\yvec=\mathcal N_\phi[\pvec_m]$; a parametric map $M_{\bm\omega}$ corrects it
 before the frozen, certified decoder reads out $\phihat$.  The map is fitted
 once on calibration data---noisy distributions at known reference phases
@@ -655,14 +662,22 @@ recovers more.
 \includegraphics[width=\linewidth]{fig3_sweep.pdf}
 \caption{\textbf{Headline comparison, $N=8$, infinite shots.}
 \textbf{a--d}~SWPE versus noise strength for the four channels; the dashed line
-is the noiseless decoder floor ($-65.3$ dB).  Zero-noise extrapolation is
-exactly blind to readout noise (panel \textbf{d}: all ZNE curves coincide with
-the unmitigated one), while the learned map inverts it and reaches the floor.
+is the noiseless decoder floor ($-65.3$ dB).  The known-noise oracle can lie
+below that floor: at infinite shots it inverts the \emph{exact} noisy
+distribution, so its residual error is only the phase-grid resolution of its
+lookup, whereas the floor carries the frozen decoder's own inversion error ---
+the floor references the deployed decoder and does not bound genie-aided
+estimation.  Zero-noise extrapolation is exactly blind to readout noise
+(panel \textbf{d}: all ZNE curves coincide with the unmitigated one), while the
+learned map inverts it and reaches the floor.
 \textbf{e}~Mean over all sixteen settings versus shot budget, including the
 noiseless floor and the known-noise-model oracle.  The exact sector inverse is
-absent from this panel because it is defined on only eight of the sixteen
-settings, so an average over all of them would not describe the same population
-as the other curves; it is drawn, and labeled, in the panels where it exists.
+absent from panels \textbf{b}, \textbf{c} and \textbf{e} because an exact sector
+kernel exists only for the flip-equivalent channels (depolarizing, readout):
+for dephasing and amplitude damping the method is undefined rather than merely
+omitted, and an average over all sixteen settings would not describe the same
+population as the other curves; it is drawn, and labeled, in the panels where it
+exists.
 \textbf{f}~Per-setting SWPE reduction of the holdout-selected \dvaqem{} variant
 relative to the unmitigated estimator, at infinite shots and at $S=1024$.  The
 legend at the foot of the figure is assembled from the curves actually drawn in

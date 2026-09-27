@@ -115,13 +115,16 @@ def split_settings(settings):
     return {k: sorted(v) for k, v in out.items() if v}
 
 
-def panel(ax, letter, title=None):
+def panel(ax, letter, title=None, tfs=7.4):
     # the checklist wants panels labeled with lower-case bold letters in
-    # parentheses, e.g. "(a)", not a bare letter
-    ax.text(-0.22, 1.06, f"({letter})", transform=ax.transAxes, fontsize=9.5,
+    # parentheses, e.g. "(a)", not a bare letter.  The letter hugs the top-left
+    # corner of its own axes: at the previous -0.22 offset it floated far away
+    # from panels with wide y-labels and, on multi-panel rows, landed inside the
+    # neighbouring panel's title.
+    ax.text(-0.02, 1.02, f"({letter})", transform=ax.transAxes, fontsize=8.5,
             weight="bold", va="bottom", ha="right")
     if title:
-        ax.set_title(title)
+        ax.set_title(title, fontsize=tfs)
 
 
 def save(fig, name, out, dpi, bbox="tight"):
@@ -177,7 +180,7 @@ def schematic(ax):
                                              fc=fc, ec=ec, lw=0.8), **kw)
 
     n1 = node(0.13, 0.87, "unknown\nphase $\\phi$", "#fff6e5", "#a07020")
-    n2 = node(0.48, 0.87, "probe circuit\n$U_R(\\phi;\\theta,\\psi)$\n"
+    n2 = node(0.48, 0.87, "probe circuit\n$U_R(\\phi;\\theta,\\vartheta)$\n"
                           "$N$ qubits", "#eef3fb", "#33587a")
     n3 = node(0.85, 0.87, "sector reduction\n$\\mathbf{p}_m\\in\\Delta^{N}$\n"
                           "$N{+}1$ numbers", "#e8f5e9", "#2e6b34")
@@ -269,7 +272,7 @@ def fig1(tag, res, out, dpi):
     # crowds the plots; the explicit margins reclaim the dead space the default
     # left/right = 0.125/0.90 used to leave on both sides of the figure.
     outer = fig.add_gridspec(1, 2, width_ratios=[1.0, 1.0], wspace=0.178,
-                             left=0.01, right=0.99, top=0.86, bottom=0.16)
+                             left=0.01, right=0.99, top=0.86, bottom=0.24)
     inner = outer[0, 1].subgridspec(1, ncol - 1, wspace=0.30)
     ax0 = fig.add_subplot(outer[0, 0])
     schematic(ax0)
@@ -277,16 +280,22 @@ def fig1(tag, res, out, dpi):
     ax1 = fig.add_subplot(inner[0, 0])
     if dist is not None:
         m, clean, noisy, mit = dist
-        ax1.plot(m, clean, "-o", color="#2ca02c", ms=2.6,
+        mh = m / 2.0        # population imbalance, the paper's m convention
+        ax1.plot(mh, clean, "-o", color="#2ca02c", ms=2.6,
                  label="noiseless $\\mathbf{p}_m$")
-        ax1.plot(m, noisy, "-s", color="#d62728", ms=2.6, label="noisy $\\mathbf{y}$")
-        ax1.plot(m, mit, "--*", color="#1f78b4", ms=4.4,
+        ax1.plot(mh, noisy, "-s", color="#d62728", ms=2.6, label="noisy $\\mathbf{y}$")
+        ax1.plot(mh, mit, "--*", color="#1f78b4", ms=4.4,
                  label="mitigated $M_\\omega(\\mathbf{y})$")
-        ax1.set_xlabel("collective imbalance $m$")
+        ax1.set_xlabel("population imbalance $m$")
         ax1.set_ylabel("probability")
         ax1.set_yscale("log")
         ax1.set_ylim(1e-4, 1.4)
-        ax1.legend(frameon=False, loc="lower center", handlelength=1.7)
+        ax1.set_xticks(np.arange(int(mh[0]), int(mh[-1]) + 1))
+        # the legend used to sit inside the axes on top of the curves; hung
+        # below the panel it occludes nothing
+        ax1.legend(frameon=False, loc="upper center", ncol=3, fontsize=5.8,
+                   handlelength=1.4, columnspacing=0.9, handletextpad=0.4,
+                   bbox_to_anchor=(0.5, -0.15))
         ax1.set_title(f"$\\phi=0.6$ rad, {setting.replace('_', ' ')}", fontsize=7)
     panel(ax1, "b")
     if ncol == 3:
@@ -309,8 +318,9 @@ def fig1(tag, res, out, dpi):
                      ms=2.8, lw=1.0, label=lab)
         ax2.set_xlabel("phase $\\phi$ [rad]")
         ax2.set_ylabel("SWPE [dB]")
-        ax2.legend(frameon=False, loc="lower center", handlelength=1.7,
-                   fontsize=6.2, ncol=1)
+        ax2.legend(frameon=False, loc="upper center", handlelength=1.4,
+                   fontsize=5.8, ncol=2, columnspacing=0.9, handletextpad=0.4,
+                   bbox_to_anchor=(0.5, -0.15))
         ax2.grid(axis="y", lw=0.3, color="#dddddd")
         panel(ax2, "c")
     save(fig, "fig1_concept", out, dpi)
@@ -342,7 +352,9 @@ def fig2(tag, res, out, dpi):
            ("sector_frozen", "certified decoder (deployed)", "#333333",
             "--", "^"))
     fig, axes = plt.subplots(1, 3, figsize=(DOUBLE, 2.45))
-    fig.subplots_adjust(wspace=0.44)
+    # a wider seam keeps panel b clear of panel c once the panel letters hug
+    # their own axes instead of floating in the left margin
+    fig.subplots_adjust(wspace=0.52)
 
     # ---- (a) the two matched readouts against each other ------------------
     ax = axes[0]
@@ -361,7 +373,7 @@ def fig2(tag, res, out, dpi):
     ax.set_xlabel("full-outcome readout: SWPE [dB]")
     ax.set_ylabel("sector readout: SWPE [dB]")
     ax.legend(frameon=False, loc="upper left", fontsize=6.0, handletextpad=0.3,
-              title="below the diagonal: sectors ahead", title_fontsize=5.6)
+              title="below the diagonal:\nsectors ahead", title_fontsize=5.6)
     ax.grid(lw=0.3, color="#dddddd")
     panel(ax, "a")
 
@@ -420,7 +432,7 @@ def fig3(tag, res, out, dpi):
     show = ["none", "zne_rich", "zne_poly1", "zne_poly2", "linv_known",
             "retrain_dec", "dvaqem", "oracle_ml"]
     fig = plt.figure(figsize=(DOUBLE, 4.4))
-    gs = fig.add_gridspec(2, 4, hspace=0.45, wspace=0.42,
+    gs = fig.add_gridspec(2, 4, hspace=0.45, wspace=0.50,
                           height_ratios=[1.15, 1.0])
     nl = one(inf, "noiseless", list(inf["noiseless"])[0])["mse_db"]
     # One legend for the whole figure, assembled from the curves that are
@@ -520,7 +532,7 @@ def fig3(tag, res, out, dpi):
     ax.set_xticks(x)
     ax.set_xticklabels([s.replace("_", " ") for s in order], fontsize=5.0,
                        rotation=55, ha="right", rotation_mode="anchor")
-    ax.set_ylabel("SWPE reduction vs\nunmitigated [dB]")
+    ax.set_ylabel("SWPE reduction [dB]")
     ax.set_title("D-VAQEM gain per noise setting", fontsize=7.4, loc="left")
     panel(ax, "f")
     ax.legend(frameon=False, loc="upper right", fontsize=6.2, ncol=2)
@@ -570,9 +582,10 @@ def fig4(tag, res, out, dpi):
     ax.set_xlabel("shot budget $S$")
     ax.set_ylabel("SWPE")
     ax.set_xticks(shots)
-    ax.set_xticklabels([str(S) for S in shots], fontsize=6.0)
+    ax.set_xticklabels([f"$2^{{{int(round(np.log2(S)))}}}$" for S in shots],
+                       fontsize=6.0)
     ax.grid(lw=0.3, color="#dddddd", which="both")
-    panel(ax, "a", s0.replace("_", " "))
+    panel(ax, "a", s0.replace("_", " "), tfs=7.0)
     hand, labl = ax.get_legend_handles_labels()
 
     ax = axes[1]
@@ -589,9 +602,10 @@ def fig4(tag, res, out, dpi):
     ax.set_ylabel("Monte Carlo / analytic SWPE")
     ax.set_ylim(0.8, 2.2)
     ax.set_xticks(shots)
-    ax.set_xticklabels([str(S) for S in shots], fontsize=6.0)
+    ax.set_xticklabels([f"$2^{{{int(round(np.log2(S)))}}}$" for S in shots],
+                       fontsize=6.0)
     ax.legend(frameon=False, fontsize=5.8, loc="upper left", handletextpad=0.4)
-    panel(ax, "b", "delta-method validation, all 3 settings")
+    panel(ax, "b", "delta-method check, all settings", tfs=7.0)
 
     ax = axes[2]
     for s, c in zip(settings, ("#e31a1c", "#ff7f00", "#1f78b4")):
@@ -604,10 +618,11 @@ def fig4(tag, res, out, dpi):
     ax.set_xlabel("shot budget $S$")
     ax.set_ylabel("shot-aware gain [dB]")
     ax.set_xticks(shots)
-    ax.set_xticklabels([str(S) for S in shots], fontsize=6.0)
+    ax.set_xticklabels([f"$2^{{{int(round(np.log2(S)))}}}$" for S in shots],
+                       fontsize=6.0)
     ax.legend(frameon=False, fontsize=5.8, loc="upper left", handletextpad=0.4)
     ax.grid(lw=0.3, color="#dddddd")
-    panel(ax, "c", "shot-aware refit vs shot-independent map")
+    panel(ax, "c", "shot-aware vs shot-independent map", tfs=7.0)
     fig.legend(hand, labl, loc="lower center", ncol=5, frameon=False,
                fontsize=6.0, handlelength=2.0, columnspacing=1.0,
                handletextpad=0.5, bbox_to_anchor=(0.5, 0.02))
