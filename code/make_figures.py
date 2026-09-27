@@ -272,7 +272,7 @@ def fig1(tag, res, out, dpi):
     # crowds the plots; the explicit margins reclaim the dead space the default
     # left/right = 0.125/0.90 used to leave on both sides of the figure.
     outer = fig.add_gridspec(1, 2, width_ratios=[1.0, 1.0], wspace=0.178,
-                             left=0.01, right=0.99, top=0.86, bottom=0.24)
+                             left=0.01, right=0.99, top=0.84, bottom=0.15)
     inner = outer[0, 1].subgridspec(1, ncol - 1, wspace=0.30)
     ax0 = fig.add_subplot(outer[0, 0])
     schematic(ax0)
@@ -291,11 +291,13 @@ def fig1(tag, res, out, dpi):
         ax1.set_yscale("log")
         ax1.set_ylim(1e-4, 1.4)
         ax1.set_xticks(np.arange(int(mh[0]), int(mh[-1]) + 1))
-        # the legend used to sit inside the axes on top of the curves; hung
-        # below the panel it occludes nothing
-        ax1.legend(frameon=False, loc="upper center", ncol=3, fontsize=5.8,
-                   handlelength=1.4, columnspacing=0.9, handletextpad=0.4,
-                   bbox_to_anchor=(0.5, -0.15))
+        # the legend used to sit inside the axes on top of the curves, and
+        # hanging it below the panel made it collide with the x-label and with
+        # panel (c)'s legend; the empty log-scale band at the bottom of the
+        # axes occludes nothing and stays inside the panel
+        ax1.legend(frameon=False, loc="lower left", ncol=1, fontsize=5.2,
+                   handlelength=1.4, handletextpad=0.4, labelspacing=0.25,
+                   borderpad=0.1)
         ax1.set_title(f"$\\phi=0.6$ rad, {setting.replace('_', ' ')}", fontsize=7)
     panel(ax1, "b")
     if ncol == 3:
@@ -318,9 +320,11 @@ def fig1(tag, res, out, dpi):
                      ms=2.8, lw=1.0, label=lab)
         ax2.set_xlabel("phase $\\phi$ [rad]")
         ax2.set_ylabel("SWPE [dB]")
-        ax2.legend(frameon=False, loc="upper center", handlelength=1.4,
-                   fontsize=5.8, ncol=2, columnspacing=0.9, handletextpad=0.4,
-                   bbox_to_anchor=(0.5, -0.15))
+        # above the axes: the red arch fills every interior corner of this
+        # panel, and below the axes the legend ran into panel (b)'s legend
+        ax2.legend(frameon=False, loc="lower left", ncol=1, fontsize=5.2,
+                   handlelength=1.4, handletextpad=0.4, labelspacing=0.25,
+                   borderpad=0.1, bbox_to_anchor=(0.0, 1.02))
         ax2.grid(axis="y", lw=0.3, color="#dddddd")
         panel(ax2, "c")
     save(fig, "fig1_concept", out, dpi)
@@ -347,14 +351,15 @@ def fig2(tag, res, out, dpi):
             continue
         pair.setdefault((r["N"], r["setting"]), {})[r["decoder"]] = r
     colN = {4: "#1f78b4", 6: "#33a02c", 8: "#e31a1c", 10: "#6a3d9a"}
-    ARM = (("sector", "sector readout, $N{+}1$ numbers", "#1f78b4", "-", "o"),
-           ("full", "full-outcome readout, $2^N$ numbers", "#d62728", "-", "s"),
-           ("sector_frozen", "certified decoder (deployed)", "#333333",
-            "--", "^"))
+    ARM = (("sector", "sector readout ($N{+}1$)", "#1f78b4", "-", "o"),
+           ("full", "full outcomes ($2^N$)", "#d62728", "-", "s"),
+           ("sector_frozen", "certified decoder", "#333333", "--", "^"))
     fig, axes = plt.subplots(1, 3, figsize=(DOUBLE, 2.45))
     # a wider seam keeps panel b clear of panel c once the panel letters hug
-    # their own axes instead of floating in the left margin
-    fig.subplots_adjust(wspace=0.52)
+    # their own axes instead of floating in the left margin; top=0.80 leaves a
+    # blank band above the panels for the line-style note of panel (b) and the
+    # legend of panel (c), which both used to sit inside their axes
+    fig.subplots_adjust(wspace=0.62, top=0.80)
 
     # ---- (a) the two matched readouts against each other ------------------
     ax = axes[0]
@@ -396,9 +401,18 @@ def fig2(tag, res, out, dpi):
     ax.set_xscale("log")
     ax.set_xlabel("depolarizing rate $p$ per gate")
     ax.set_ylabel("SWPE(full) $-$ SWPE(sectors) [dB]")
-    ax.legend(frameon=False, loc="best", fontsize=5.8, ncol=2,
-              title="solid: matched arms\ndotted: certified decoder",
-              title_fontsize=5.4)
+    # the line-style note used to be the legend title, where its two lines sat
+    # on top of the curves in the lower half of the panel; the blank band above
+    # the panel (there is no title here) is the middle-top empty area instead
+    ax.text(0.52, 1.03, "solid: matched arms\ndotted: certified decoder",
+            transform=ax.transAxes, ha="center", va="bottom", fontsize=5.4,
+            linespacing=1.3)
+    # extend the y-limit downwards so the bottom band of the panel is empty
+    # and can carry the system-size legend without touching any curve
+    ax.set_ylim(-9.2, 7.6)
+    ax.legend(frameon=False, loc="lower center", fontsize=5.4, ncol=2,
+              handlelength=1.4, columnspacing=0.8, handletextpad=0.4,
+              labelspacing=0.25, borderpad=0.1, bbox_to_anchor=(0.5, 0.0))
     ax.grid(lw=0.3, color="#dddddd")
     panel(ax, "b")
 
@@ -416,9 +430,17 @@ def fig2(tag, res, out, dpi):
     ax.set_xlabel("qubit number $N$")
     ax.set_ylabel("SWPE [dB]")
     ax.set_xticks(Ns)
-    ax.legend(frameon=False, loc="lower left", fontsize=5.6, handletextpad=0.4)
+    # legend above the axes, in the blank band outside the top of the panel:
+    # inside the axes its lower-left corner sat on the N=4 markers and its
+    # long entries overflowed the right spine
+    ax.legend(frameon=False, loc="lower left", fontsize=5.4, handletextpad=0.4,
+              labelspacing=0.25, borderpad=0.1, bbox_to_anchor=(0.0, 1.02))
     ax.grid(lw=0.3, color="#dddddd")
-    panel(ax, "c", "depolarizing $p=0.01$")
+    panel(ax, "c")
+    # the panel title moves inside the axes (its upper-left corner is empty)
+    # so that the legend can own the band above the panel
+    ax.text(0.03, 0.97, "depolarizing $p=0.01$", transform=ax.transAxes,
+            ha="left", va="top", fontsize=7)
     save(fig, "fig2_sufficiency", out, dpi)
 
 

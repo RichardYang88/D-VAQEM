@@ -230,19 +230,20 @@ paper.  Measuring in the computational basis gives the outcome distribution
 $p(x|\phi)=\big|\langle x|U_R(\phi;\bm\theta,\bm\vartheta)
 |\downarrow\rangle^{\otimes N}\big|^2$ over bit strings $x\in\{0,1\}^N$, which we
 aggregate onto the population imbalance between the two spin states,
-$m=(\#0(x)-\#1(x))/2\in\{-N/2,-N/2+1,\dots,N/2\}$ as in
+written $m(x)=(\#0(x)-\#1(x))/2\in\{-N/2,-N/2+1,\dots,N/2\}$ as in
 Ref.~\cite{yang2025vqcnni} (half-integer valued when $N$ is odd),
 \begin{equation}
   p_{\bm\theta,\bm\vartheta}(m|\phi)
-  = \sum_{x:\,(\#0(x)-\#1(x))/2=m} p(x|\phi)
+  = \sum_{x:\,m(x)=m} p(x|\phi)
   \equiv \big(A\,p(\cdot|\phi)\big)_m ,
   \label{eq:aggregate}
 \end{equation}
 so that the readout sees the $(N+1)$-component probability vector
-$\pvec(m|\phi)=\big(p(-N/2|\phi),\dots,p(N/2|\phi)\big)$ instead of the $2^N$
+$\pvec(m|\phi)=\big(p(-N/2|\phi),\dots,p(N/2|\phi)\big)$, a point of the
+probability simplex $\Delta^N$, instead of the $2^N$
 outcome probabilities; where a subscript is typographically convenient we write
 $\pvec_m(\phi)\equiv\pvec(m|\phi)$.  The figures and the implementation label the
-same outcomes by the integer imbalance $2m=\#0-\#1\in\{-N,-N+2,\dots,N\}$; a
+same outcomes by the integer imbalance $2m(x)=\#0(x)-\#1(x)\in\{-N,-N+2,\dots,N\}$; a
 sector is the set of outcomes with a given $|m|$, of which there are
 $\lfloor N/2\rfloor+1$.  The estimator is a frozen multilayer
 perceptron $\phihat=D_{\mathbf w}\big(\pvec(m|\phi)\big)$ that maps this vector
@@ -780,8 +781,8 @@ Figure~\ref{fig:shots} tests the closed-form variance \eqref{eq:var} on three
 representative settings over $S=64\dots8192$.  The analytic prediction
 $\mathrm{bias}^2+\mathrm{Var}_S$ tracks the Monte-Carlo SWPE over
 $96$ (setting, method, $S$) points with a ratio in $[0.90,2.08]$, mean $1.03$,
-median $1.00$ (Supplemental Tables~\ref{tab:e3mc} for the Monte-Carlo values
-and~\ref{tab:e3ratio} for every ratio); for the map-based estimators the ratio
+median $1.00$ (Supplemental Table~\ref{tab:e3mc} for the Monte-Carlo values
+and Table~\ref{tab:e3ratio} for every ratio); for the map-based estimators the ratio
 stays in
 $[0.90,1.18]$, and the only deviations beyond $1.2$ are ZNE at $S\le256$,
 where the extrapolated observable is far from Gaussian.  The closed-form
@@ -956,7 +957,7 @@ everywhere---ahead in $0/20$ settings at each of $S=256$, $1024$ and $4096$, by
 $-4.6$ dB $[-6.3,-3.1]$, $-5.0$ dB $[-6.7,-3.5]$ and $-5.6$ dB $[-7.4,-3.9]$,
 with exact sign and Wilcoxon $p\le1.9\times10^{-6}$ in all three---and even at
 infinite shots the mean is $-0.9$ dB $[-2.09,-0.04]$, the exact Wilcoxon test
-rejecting equality at $p=0.030$.  canceling errors probabilistically is not
+rejecting equality at $p=0.030$.  Canceling errors probabilistically is not
 \emph{wrong}: it is unbiased, and it is the right instrument when shots are
 free.  It is simply dominated, because it pays $\gamma^2$ for an expectation the
 matrix inverse delivers exactly.  Supplemental Table~\ref{tab:pec} tabulates
@@ -1252,11 +1253,26 @@ the main text.
 % ============================ supplemental tables ========================
 \setcounter{table}{0}
 \renewcommand{\thetable}{S\arabic{table}}
+% Pack the supplemental floats.  This section is nothing but tables, so let
+% many of them share a page: the default limits (two wide floats per page at
+% most) left half-empty pages between the tables and an empty float page at
+% the very end of the document.
+\setcounter{topnumber}{6}
+\setcounter{bottomnumber}{3}
+\setcounter{totalnumber}{9}
+\setcounter{dbltopnumber}{6}
+\renewcommand{\topfraction}{0.98}
+\renewcommand{\bottomfraction}{0.90}
+\renewcommand{\textfraction}{0.02}
+\renewcommand{\floatpagefraction}{0.95}
+\renewcommand{\dbltopfraction}{0.98}
+\renewcommand{\dblfloatpagefraction}{0.95}
 \section*{Supplemental tables}
 \label{app:supplement}
 The tables below are generated directly from the result files shipped with the
 code; the corresponding machine-readable digest is \texttt{paper\_numbers.md} in
 the repository.
 \input{tables_supplement}
+\clearpage
 
 \end{document}
